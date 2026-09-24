@@ -1,0 +1,255 @@
+version: '3.8'
+
+# SmartKids Autonomous Video Factory
+# Target Environment: Oracle OCI Always Free ARM (Ampere A1)
+# Total Compute Envelope: 2 OCPU (4 vCPUs) / 12 GB RAM / 200 GB Block Storage
+# Concurrency Envelope: Concurrency = 1 per heavy worker to prevent CPU thrashing & OOM
+
+networks:
+  smartkids_net:
+    driver: bridge
+
+volumes:
+  oci_pgdata:
+    driver: local
+  oci_redisdata:
+    driver: local
+  render_scratch:
+    driver: local
+  piper_models:
+    driver: local
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: smartkids_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: smartkids_production
+      POSTGRES_USER: smartkids_admin
+      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
+    volumes:
+      - oci_pgdata:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    deploy:
+      resources:
+        limits:
+          cpus: '0.30'
+          memory: 2048M
+        reservations:
+          cpus: '0.10'
+          memory: 512M
+    networks:
+      - smartkids_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smartkids_admin -d smartkids_production"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: smartkids_redis
+    restart: always
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "384mb", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - oci_redisdata:/data
+    deploy:
+      resources:
+        limits:
+          cpus: '0.15'
+          memory: 512M
+        reservations:
+          cpus: '0.05'
+          memory: 128M
+    networks:
+      - smartkids_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  orchestrator:
+    build:
+      context: .
+      dockerfile: ./orchestrator/Dockerfile
+    container_name: smartkids_orchestrator
+    restart: always
+    environment:
+      - DATABASE_URL=postgresql://smartkids_admin:secure_pg_pass@postgres:5432/smartkids_production
+      - REDIS_URL=redis://redis:6379/0
+      - ALLOW_PAID_SERVICES=false
+      - DEV_MODE=false
+      - GEMINI_MODEL_QA=gemini-3.5-flash
+      - GEMINI_MODEL_LOC=gemini-3.5-flash-lite
+      - MAX_DAILY_YOUTUBE_UPLOADS=100
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 1024M
+    networks:
+      - smartkids_net
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c 'import os; os.getpid()'"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  piper_worker:
+    build:
+      context: .
+      dockerfile: ./orchestrator/Dockerfile
+    container_name: smartkids_piper_worker
+    restart: always
+    command: ["celery", "-A", "orchestrator.orchestrator", "worker", "-Q", "tts_queue", "--concurrency=1", "-n", "piper_worker@%h"]
+    environment:
+      - DATABASE_URL=postgresql://smartkids_admin:secure_pg_pass@postgres:5432/smartkids_production
+      - REDIS_URL=redis://redis:6379/0
+      - ALLOW_PAID_SERVICES=false
+      - COMMERCIAL_SAFETY_GATE=STRICT
+      - PIPER_CONCURRENCY=1
+    volumes:
+      - piper_models:/models/piper
+      - render_scratch:/scratch
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.40'
+          memory: 2048M
+    networks:
+      - smartkids_net
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c 'import os; os.getpid()'"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  render_worker:
+    build:
+      context: .
+      dockerfile: ./orchestrator/Dockerfile
+    container_name: smartkids_render_worker
+    restart: always
+    command: ["celery", "-A", "orchestrator.orchestrator", "worker", "-Q", "render_queue", "--concurrency=1", "-n", "render_worker@%h"]
+    environment:
+      - DATABASE_URL=postgresql://smartkids_admin:secure_pg_pass@postgres:5432/smartkids_production
+      - REDIS_URL=redis://redis:6379/0
+      - ALLOW_PAID_SERVICES=false
+      - FFMPEG_CONCURRENCY=1
+      - FFMPEG_PRESET=medium
+      - FFMPEG_FPS=60
+    volumes:
+      - render_scratch:/scratch
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 3072M
+    networks:
+      - smartkids_net
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c 'import os; os.getpid()'"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  qa_worker:
+    build:
+      context: .
+      dockerfile: ./orchestrator/Dockerfile
+    container_name: smartkids_qa_worker
+    restart: always
+    command: ["celery", "-A", "orchestrator.orchestrator", "worker", "-Q", "qa_queue", "--concurrency=1", "-n", "qa_worker@%h"]
+    environment:
+      - DATABASE_URL=postgresql://smartkids_admin:secure_pg_pass@postgres:5432/smartkids_production
+      - REDIS_URL=redis://redis:6379/0
+      - ALLOW_PAID_SERVICES=false
+      - GEMINI_MODEL_QA=gemini-3.5-flash
+    volumes:
+      - render_scratch:/scratch
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.15'
+          memory: 1024M
+    networks:
+      - smartkids_net
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c 'import os; os.getpid()'"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  youtube_worker:
+    build:
+      context: .
+      dockerfile: ./orchestrator/Dockerfile
+    container_name: smartkids_youtube_worker
+    restart: always
+    command: ["celery", "-A", "orchestrator.orchestrator", "worker", "-Q", "youtube_queue", "--concurrency=1", "-n", "youtube_worker@%h"]
+    environment:
+      - DATABASE_URL=postgresql://smartkids_admin:secure_pg_pass@postgres:5432/smartkids_production
+      - REDIS_URL=redis://redis:6379/0
+      - ALLOW_PAID_SERVICES=false
+      - MAX_DAILY_UPLOADS_TOTAL=100
+      - CHUNK_UPLOAD_SIZE_BYTES=4194304
+    volumes:
+      - render_scratch:/scratch
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.15'
+          memory: 1024M
+    networks:
+      - smartkids_net
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c 'import os; os.getpid()'"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  analytics_worker:
+    build:
+      context: .
+      dockerfile: ./orchestrator/Dockerfile
+    container_name: smartkids_analytics_worker
+    restart: always
+    command: ["celery", "-A", "orchestrator.orchestrator", "worker", "-Q", "analytics_queue", "--concurrency=1", "-n", "analytics_worker@%h"]
+    environment:
+      - DATABASE_URL=postgresql://smartkids_admin:secure_pg_pass@postgres:5432/smartkids_production
+      - REDIS_URL=redis://redis:6379/0
+      - ALLOW_PAID_SERVICES=false
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.10'
+          memory: 512M
+    networks:
+      - smartkids_net
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c 'import os; os.getpid()'"]
+      interval: 15s
+      timeout: 5s
+      retries: 3

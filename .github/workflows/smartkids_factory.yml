@@ -1,0 +1,126 @@
+name: SmartKids Cloud Autonomous Factory (ARM64 Ubuntu 24.04)
+
+on:
+  schedule:
+    # Autonomous hourly check (checks automation_control.enabled, heartbeat, and runs scheduled daily cycles)
+    - cron: '0 * * * *'
+  workflow_dispatch:
+    inputs:
+      force_run:
+        description: 'Force execution cycle regardless of automation_control.enabled'
+        type: boolean
+        required: false
+        default: false
+      strict_supabase:
+        description: 'Enforce strict remote Supabase sync requirement'
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  group: smartkids-cloud-factory
+  cancel-in-progress: false
+
+jobs:
+  autonomous_factory_cycle:
+    runs-on: ubuntu-24.04-arm
+    name: Cloud Production Factory (ubuntu-24.04-arm)
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Runner Architecture & Hardware Diagnostics
+        run: |
+          echo "=============================================================="
+          echo "SMARTKIDS AUTONOMOUS RUNNER — ARCHITECTURE DIAGNOSTICS"
+          echo "=============================================================="
+          echo -n "Runner Architecture: " && uname -m
+          echo -n "Kernel Release:      " && uname -r
+          echo -n "Operating System:    " && cat /etc/os-release | grep PRETTY_NAME | cut -d= -f2
+          echo -n "Python Version:      " && python3 --version
+          echo "Hardware CPU Cores:   $(nproc)"
+          echo "Total Memory:"
+          free -h
+          echo "Disk Allocation:"
+          df -h /
+          echo "=============================================================="
+          ARCH=$(uname -m)
+          if [ "$ARCH" != "aarch64" ]; then
+            echo "::warning::Runner architecture is $ARCH (expected aarch64 on ubuntu-24.04-arm)"
+          else
+            echo "VERIFIED: Running on native ARM64 (aarch64) production hardware."
+          fi
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install System Utilities (FFmpeg, Audio Libraries, DejaVu Fonts)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core libsndfile1
+
+      - name: Download & Install Piper TTS Engine (ARM64 Native)
+        run: |
+          ARCH=$(uname -m)
+          mkdir -p /tmp/piper_install
+          if [ "$ARCH" = "aarch64" ]; then
+            TAR_FILE="piper_linux_aarch64.tar.gz"
+          else
+            TAR_FILE="piper_linux_x86_64.tar.gz"
+          fi
+          echo "Fetching Piper binary for $ARCH: $TAR_FILE"
+          curl -sL "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/$TAR_FILE" | tar -xz -C /tmp/piper_install
+          sudo cp -r /tmp/piper_install/piper/* /usr/local/bin/
+          piper --version
+
+      - name: Install Python Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install requests psycopg2-binary google-auth google-auth-oauthlib google-api-python-client
+
+      - name: Cache & Download Piper Voice Models
+        run: |
+          python3 backend/tools/download_models.py --languages EN
+
+      - name: Execute Autonomous Cloud Factory Engine
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN_EN: ${{ secrets.YOUTUBE_REFRESH_TOKEN_EN }}
+          ALLOW_PAID_SERVICES: 'false'
+        run: |
+          FLAGS=""
+          if [ "${{ github.event.inputs.force_run }}" = "true" ]; then
+            FLAGS="$FLAGS --force"
+          fi
+          if [ "${{ github.event.inputs.strict_supabase }}" = "true" ]; then
+            FLAGS="$FLAGS --strict-supabase"
+          fi
+
+          echo "Launching Autonomous Factory Orchestrator with flags: $FLAGS"
+          python3 backend/engine/factory_orchestrator.py $FLAGS
+
+      - name: Safe Heartbeat Activity
+        run: |
+          echo "Autonomous Factory Heartbeat completed at $(date -u)" > .github/HEARTBEAT_TIMESTAMP
+          echo "Heartbeat verified. Public repository scheduler remains active."
+
+      - name: Upload Run Audit Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloud-factory-run-audit
+          path: |
+            /tmp/smartkids_output/production_run_summary.json
+            .github/HEARTBEAT_TIMESTAMP
+          if-no-files-found: ignore

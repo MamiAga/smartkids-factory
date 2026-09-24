@@ -1,0 +1,133 @@
+name: SmartKids Production Pipeline (ARM64 Ubuntu 24.04)
+
+on:
+  workflow_dispatch:
+    inputs:
+      episode_id:
+        description: 'Episode DNA ID'
+        required: true
+        default: 'EP-COLORS-5-V1'
+      language:
+        description: 'Target Language (EN)'
+        required: true
+        default: 'EN'
+
+jobs:
+  produce_and_verify:
+    runs-on: ubuntu-24.04-arm
+    name: Production Pipeline Runner (ubuntu-24.04-arm)
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Runner Architecture & System Diagnostics
+        run: |
+          echo "=========================================="
+          echo "GITHUB ACTIONS RUNNER SYSTEM DIAGNOSTICS"
+          echo "=========================================="
+          echo "Runner Architecture:"
+          uname -m
+          echo "Kernel Info:"
+          uname -a
+          echo "Python Version:"
+          python3 --version
+          echo "Memory Info:"
+          free -h
+          echo "Disk Usage:"
+          df -h
+          echo "=========================================="
+          ARCH=$(uname -m)
+          if [ "$ARCH" != "aarch64" ]; then
+            echo "WARNING: Expected aarch64 on ubuntu-24.04-arm, but got $ARCH"
+          else
+            echo "VERIFIED: Running on native ARM64 (aarch64) hardware."
+          fi
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install System Utilities (FFmpeg, Audio Libraries, DejaVu Fonts)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core
+
+      - name: Download & Install Piper TTS Engine (Architecture-Aware)
+        run: |
+          ARCH=$(uname -m)
+          mkdir -p /tmp/piper_install
+          if [ "$ARCH" = "aarch64" ]; then
+            TAR_FILE="piper_linux_aarch64.tar.gz"
+          else
+            TAR_FILE="piper_linux_x86_64.tar.gz"
+          fi
+          echo "Fetching Piper binary for $ARCH: $TAR_FILE"
+          curl -sL "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/$TAR_FILE" | tar -xz -C /tmp/piper_install
+          sudo cp -r /tmp/piper_install/piper/* /usr/local/bin/
+          piper --version
+
+      - name: Install Python Production Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install requests psycopg2-binary google-auth google-auth-oauthlib google-api-python-client
+
+      - name: Cache & Download Piper Voice Model
+        run: |
+          python3 backend/tools/download_models.py --languages "${{ github.event.inputs.language || 'EN' }}"
+
+      - name: Execute Autonomous Production Orchestrator
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN_EN: ${{ secrets.YOUTUBE_REFRESH_TOKEN_EN }}
+        run: |
+          python3 backend/engine/production_runner.py \
+            --episode "${{ github.event.inputs.episode_id || 'EP-COLORS-5-V1' }}" \
+            --language "${{ github.event.inputs.language || 'EN' }}" \
+            --strict-supabase
+
+      - name: Verify Supabase Production Record
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: |
+          python3 -c "
+          import os, sys, json, urllib.request
+          url = os.environ.get('SUPABASE_URL')
+          key = os.environ.get('SUPABASE_SECRET_KEY')
+          if not url or not key:
+              print('SUPABASE CHECK: Secrets not configured in environment, failing step.')
+              sys.exit(1)
+          endpoint = f'{url.rstrip(\"/\")}/rest/v1/pipeline_jobs?episode_id=eq.EP-COLORS-5-V1&language=eq.EN&order=created_at.desc&limit=1'
+          req = urllib.request.Request(endpoint, headers={'apikey': key, 'Authorization': f'Bearer {key}'})
+          with urllib.request.urlopen(req) as resp:
+              data = json.loads(resp.read().decode('utf-8'))
+              if not data:
+                  print('SUPABASE CHECK FAILED: No record found for EP-COLORS-5-V1 EN')
+                  sys.exit(1)
+              record = data[0]
+              print('SUPABASE RECORD VERIFIED:')
+              print(f'  Job ID: {record.get(\"job_id\")}')
+              print(f'  State: {record.get(\"state\")}')
+              print(f'  YouTube Video ID: {record.get(\"youtube_video_id\")}')
+              print(f'  Processing Status: {record.get(\"processing_status\")}')
+              print(f'  Privacy Status: {record.get(\"youtube_privacy_status\")}')
+          "
+
+      - name: Archive Production Run Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-audit-artifacts
+          path: |
+            backend/production_run.log
+            /tmp/smartkids_output/*.json
+            /tmp/smartkids_output/*.mp4
+          retention-days: 7

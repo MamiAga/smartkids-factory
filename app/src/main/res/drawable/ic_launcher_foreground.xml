@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:pivotX="54"
+        android:pivotY="54">
+        <!-- Main Graduation Cap / Academy Icon -->
+        <path
+            android:fillColor="#4CC9F0"
+            android:pathData="M54,32 L26,45 L54,58 L82,45 Z" />
+        <path
+            android:fillColor="#4361EE"
+            android:pathData="M34,51.5 L34,65 C34,73 74,73 74,65 L74,51.5 L54,61 Z" />
+        <!-- Tassel & Spark -->
+        <path
+            android:fillColor="#F72585"
+            android:pathData="M78,47 L78,61 C78,63 76,64 74,64 C72,64 71,63 71,61 L71,48 Z" />
+        <!-- Glowing Core Center Sparkle -->
+        <path
+            android:fillColor="#FBBF24"
+            android:pathData="M54,69 L56,74 L61,76 L56,78 L54,83 L52,78 L47,76 L52,74 Z" />
+        <!-- Digital Audio / Wave Nodes -->
+        <path
+            android:fillColor="#38BDF8"
+            android:pathData="M24,54 A3,3 0 1,0 24,60 A3,3 0 1,0 24,54 Z
+                              M84,54 A3,3 0 1,0 84,60 A3,3 0 1,0 84,54 Z
+                              M54,23 A2.5,2.5 0 1,0 54,28 A2.5,2.5 0 1,0 54,23 Z" />
+    </group>
+</vector>
+
