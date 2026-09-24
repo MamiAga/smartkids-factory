@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.ui.components.AppTopBar
@@ -22,8 +23,6 @@ import com.example.ui.viewmodel.MainViewModel
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.colorMode = android.content.pm.ActivityInfo.COLOR_MODE_DEFAULT
-        window.setFormat(android.graphics.PixelFormat.TRANSLUCENT)
         enableEdgeToEdge()
         setContent {
             MyApplicationTheme {
