@@ -492,9 +492,9 @@ fun AutomationDashboardCard(
                         )
                         Text(
                             text = if (isEnabled)
-                                "Supabase automation_control.enabled = FALSE yap"
+                                "Otonom üretimi duraklat (Standby modu)"
                             else
-                                "Supabase automation_control.enabled = TRUE yap",
+                                "Tek tuşla GitHub Actions ARM64 üretimini başlat",
                             style = MaterialTheme.typography.labelSmall,
                             color = Color.White.copy(alpha = 0.9f)
                         )

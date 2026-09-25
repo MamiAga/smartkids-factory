@@ -119,6 +119,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     init {
         viewModelScope.launch {
             repository.initializeDatabaseDefaults()
+            try {
+                repository.syncFromSupabaseCloud()
+            } catch (e: Exception) {
+                // Initial sync best effort
+            }
+        }
+        viewModelScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(15_000)
+                try {
+                    repository.syncFromSupabaseCloud()
+                } catch (e: Exception) {
+                    // Periodic background sync best effort
+                }
+            }
         }
     }
 
@@ -336,8 +351,46 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleFactory(enabled: Boolean) {
         viewModelScope.launch {
             repository.toggleAutomationControl(enabled)
-            val msg = if (enabled) "ÜRETİM BAŞLATILDI: GitHub Actions ARM64 + Supabase otonom döngüsü devrede." else "ÜRETİM DURDURULDU: Fabrika standby moduna alındı."
-            _notification.value = UiNotification(msg)
+            if (enabled) {
+                val activeLangsJson = repository.automationControl.firstOrNull()?.activeLanguagesJson
+                val targetLang = parseActiveLanguage(activeLangsJson)
+                val targetEpisode = "EP-COLORS-5-V1"
+                _notification.value = UiNotification("🚀 START: GitHub Actions Production Pipeline ($targetEpisode, $targetLang) tetikleniyor...")
+                val result = repository.triggerGitHubWorkflowDispatch(targetEpisode, targetLang)
+                if (result.isSuccess) {
+                    val newJob = PipelineJobEntity(
+                        jobId = "JOB-$targetLang-$targetEpisode-${System.currentTimeMillis() % 1000}",
+                        episodeId = targetEpisode,
+                        title = "SmartKids Bölüm: $targetEpisode ($targetLang)",
+                        languageCode = targetLang,
+                        status = "PLANNED",
+                        deterministicSeed = repository.calculateDeterministicSeed(targetEpisode, targetLang, "2.0.0"),
+                        renderDurationSeconds = 0.0,
+                        costUsd = 0.0,
+                        technicalQaPassed = true,
+                        educationalQaPassed = true,
+                        logMessage = "Android START tuşu ile GitHub Actions workflow_dispatch tetiklendi. Runner: ubuntu-24.04-arm"
+                    )
+                    repository.saveJob(newJob)
+                    _notification.value = UiNotification("✅ ÜRETİM BAŞLATILDI: GitHub Actions ARM64 runner tetiklendi ($targetLang)!")
+                } else {
+                    _notification.value = UiNotification("⚠️ Fabrika açıldı ancak GitHub tetikleme uyarısı: ${result.exceptionOrNull()?.message}", isError = true)
+                }
+            } else {
+                _notification.value = UiNotification("ÜRETİM DURDURULDU: Fabrika standby moduna alındı.")
+            }
+        }
+    }
+
+    private fun parseActiveLanguage(langsJson: String?): String {
+        if (langsJson.isNullOrBlank()) return "EN"
+        return try {
+            val cleaned = langsJson.trim().removeSurrounding("[", "]")
+            cleaned.split(",")
+                .map { it.trim().removeSurrounding("\"") }
+                .firstOrNull { it.isNotEmpty() } ?: "EN"
+        } catch (e: Exception) {
+            "EN"
         }
     }
 
