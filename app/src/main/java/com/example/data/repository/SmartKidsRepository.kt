@@ -3,6 +3,7 @@ package com.example.data.repository
 import com.example.data.api.GeminiClient
 import com.example.data.api.GeminiResponse
 import com.example.data.local.*
+import androidx.room.withTransaction
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
@@ -264,56 +265,10 @@ class SmartKidsRepository(
             }
         }
 
-        val existingJobs = database.pipelineDao().getAllJobs().firstOrNull()
-        if (existingJobs.isNullOrEmpty()) {
-            val sampleJob1 = PipelineJobEntity(
-                jobId = "JOB-EN-SAFARI-001",
-                episodeId = "EP-SAFARI-001",
-                title = "Color Safari: Five Friendly Animals",
-                languageCode = "EN",
-                status = "PUBLISHED",
-                deterministicSeed = calculateDeterministicSeed("EP-SAFARI-001", "EN", "2.0.0"),
-                renderDurationSeconds = 48.2,
-                youtubeVideoId = "yt_demo_en_safari1",
-                costUsd = 0.0,
-                localFileDeleted = true,
-                technicalQaPassed = true,
-                educationalQaPassed = true,
-                logMessage = "Successfully published to YouTube EN Channel. Processing status 'succeeded'. Local MP4 verified deleted per zero-bloat policy."
-            )
-            val sampleJob2 = PipelineJobEntity(
-                jobId = "JOB-DE-SAFARI-001",
-                episodeId = "EP-SAFARI-001",
-                title = "Farben Safari: Fünf Tierfreunde",
-                languageCode = "DE",
-                status = "PROCESSED",
-                deterministicSeed = calculateDeterministicSeed("EP-SAFARI-001", "DE", "2.0.0"),
-                renderDurationSeconds = 49.5,
-                youtubeVideoId = "yt_demo_de_safari1",
-                costUsd = 0.0,
-                localFileDeleted = false,
-                technicalQaPassed = true,
-                educationalQaPassed = true,
-                logMessage = "Uploaded to DE channel. YouTube backend processing complete. Pending local file garbage collection."
-            )
-            val sampleJob3 = PipelineJobEntity(
-                jobId = "JOB-TR-SAFARI-001",
-                episodeId = "EP-SAFARI-001",
-                title = "Renk Safarisi: Beş Sevimli Hayvan",
-                languageCode = "TR",
-                status = "QA_FAILED",
-                deterministicSeed = calculateDeterministicSeed("EP-SAFARI-001", "TR", "2.0.0"),
-                renderDurationSeconds = 0.0,
-                youtubeVideoId = "",
-                costUsd = 0.0,
-                localFileDeleted = false,
-                technicalQaPassed = false,
-                educationalQaPassed = false,
-                logMessage = "BLOCKED BY STATIC PIPER VOICE REGISTRY: Voice tr_TR-dfki-medium has license CC-BY-NC-SA 4.0 (Non-Commercial). Production pipeline hard-locked until commercial replacement ONNX is staged."
-            )
-            database.pipelineDao().insertJob(sampleJob1)
-            database.pipelineDao().insertJob(sampleJob2)
-            database.pipelineDao().insertJob(sampleJob3)
+        // No demo/sample jobs: fake "yt_demo_*" rows used to inflate the produced-video counter.
+        // Real jobs come only from Supabase pipeline_jobs (see syncFromSupabaseCloud).
+        listOf("JOB-EN-SAFARI-001", "JOB-DE-SAFARI-001", "JOB-TR-SAFARI-001").forEach {
+            database.pipelineDao().deleteJob(it)
         }
 
         val existingCtrl = database.automationControlDao().getControlSnapshot()
@@ -484,15 +439,27 @@ class SmartKidsRepository(
         }
     }
 
-    suspend fun toggleAutomationControl(enabled: Boolean) = withContext(Dispatchers.IO) {
-        database.automationControlDao().setEnabled(enabled)
+    /**
+     * START/STOP. Returns true only if Supabase (source of truth) accepted the change.
+     * The local switch is updated only after the cloud write succeeds, so the UI can never
+     * show "ÜRETİM AÇIK" while the cloud factory is actually still disabled.
+     */
+    suspend fun toggleAutomationControl(enabled: Boolean): Boolean = withContext(Dispatchers.IO) {
         val ctrl = database.automationControlDao().getControlSnapshot()
-        val eventType = if (enabled) "FACTORY_ENABLED" else "FACTORY_DISABLED"
-        val msg = if (enabled) "Kullanıcı bulut üretim fabrikasını [BAŞLATTI]. Otonom döngü aktif." else "Kullanıcı bulut üretim fabrikasını [DURDURDU]. Standby modu devrede."
-        recordSystemEvent(eventType, msg, if (enabled) "INFO" else "WARNING")
-        if (ctrl != null) {
-            syncControlToSupabase(enabled, ctrl.dailyMasterEpisodes, ctrl.activeLanguagesJson)
+        val ok = syncControlToSupabase(
+            enabled,
+            ctrl?.dailyMasterEpisodes ?: 1,
+            ctrl?.activeLanguagesJson ?: "[\"EN\"]"
+        )
+        if (ok) {
+            database.automationControlDao().setEnabled(enabled)
+            val eventType = if (enabled) "FACTORY_ENABLED" else "FACTORY_DISABLED"
+            val msg = if (enabled) "Kullanıcı bulut üretim fabrikasını [BAŞLATTI] (Supabase enabled=true)." else "Kullanıcı bulut üretim fabrikasını [DURDURDU] (Supabase enabled=false)."
+            recordSystemEvent(eventType, msg, if (enabled) "INFO" else "WARNING")
+        } else {
+            recordSystemEvent("CLOUD_WRITE_FAILED", "Supabase automation_control güncellenemedi (enabled=$enabled).", "ERROR")
         }
+        ok
     }
 
     suspend fun updateDailyMasterEpisodes(episodes: Int) = withContext(Dispatchers.IO) {
@@ -507,7 +474,13 @@ class SmartKidsRepository(
 
     suspend fun updateSchedule(time: String, timezone: String) = withContext(Dispatchers.IO) {
         database.automationControlDao().setSchedule(time, timezone)
-        recordSystemEvent("SCHEDULE_UPDATED", "Üretim saati güncellendi: $time ($timezone)")
+        // Previously only stored locally, so the cloud factory never saw the new time.
+        val ok = patchControlRemote("""{"schedule_time":"$time","timezone":"$timezone"}""")
+        recordSystemEvent(
+            "SCHEDULE_UPDATED",
+            if (ok) "Üretim saati güncellendi: $time ($timezone)" else "Üretim saati yalnızca yerelde kaydedildi, Supabase'e yazılamadı!",
+            if (ok) "INFO" else "ERROR"
+        )
     }
 
     suspend fun toggleActiveLanguage(langCode: String) = withContext(Dispatchers.IO) {
@@ -535,6 +508,7 @@ class SmartKidsRepository(
         database.automationControlDao().setActiveLanguages(json)
         recordSystemEvent("LANGUAGES_UPDATED", "Aktif diller güncellendi: $json")
         syncControlToSupabase(ctrl.enabled, ctrl.dailyMasterEpisodes, json)
+        Unit
     }
 
     suspend fun recordSystemEvent(eventType: String, message: String, severity: String = "INFO") = withContext(Dispatchers.IO) {
@@ -605,7 +579,7 @@ class SmartKidsRepository(
 
             // 2. Fetch recent pipeline_jobs
             try {
-                val jobsUrl = java.net.URL("$supabaseUrl/rest/v1/pipeline_jobs?select=*&order=created_at.desc&limit=15")
+                val jobsUrl = java.net.URL("$supabaseUrl/rest/v1/pipeline_jobs?select=*&order=updated_at.desc&limit=20")
                 val jobsConn = jobsUrl.openConnection() as java.net.HttpURLConnection
                 jobsConn.requestMethod = "GET"
                 jobsConn.setRequestProperty("apikey", anonKey)
@@ -617,31 +591,45 @@ class SmartKidsRepository(
                 if (jobsConn.responseCode == 200) {
                     val jobsText = jobsConn.inputStream.bufferedReader().use { it.readText() }
                     val jobsArr = org.json.JSONArray(jobsText)
+                    val cloudJobs = mutableListOf<PipelineJobEntity>()
                     for (i in 0 until jobsArr.length()) {
                         val j = jobsArr.getJSONObject(i)
-                        val jId = j.optString("job_id", "JOB-$i")
-                        val epId = j.optString("episode_id", "EP-COLORS-5-V1")
+                        val jId = j.optString("job_id", "")
+                        if (jId.isBlank()) continue
+                        val epId = j.optString("episode_id", "")
                         val lang = j.optString("language", "EN")
-                        val state = j.optString("state", "PLANNED")
-                        val ytId = j.optString("youtube_video_id", "")
-                        val cost = j.optDouble("cost_usd", 0.0)
-                        val techQa = j.optBoolean("technical_qa_passed", true)
-                        val eduQa = j.optBoolean("educational_qa_passed", true)
-
-                        val entity = PipelineJobEntity(
-                            jobId = jId,
-                            episodeId = epId,
-                            title = "SmartKids Bölüm: $epId",
-                            languageCode = lang,
-                            status = state,
-                            deterministicSeed = calculateDeterministicSeed(epId, lang, "2.0.0"),
-                            youtubeVideoId = ytId,
-                            costUsd = cost,
-                            technicalQaPassed = techQa,
-                            educationalQaPassed = eduQa,
-                            logMessage = "Supabase senkronize edildi. Durum: $state, YouTube ID: $ytId"
+                        val state = j.optString("state", "CREATED")
+                        val ytId = if (j.isNull("youtube_video_id")) "" else j.optString("youtube_video_id", "")
+                        val err = if (j.isNull("error_message")) "" else j.optString("error_message", "")
+                        val proc = if (j.isNull("processing_status")) "" else j.optString("processing_status", "")
+                        val updated = parseIsoTimestamp(if (j.isNull("updated_at")) null else j.optString("updated_at"))
+                        cloudJobs.add(
+                            PipelineJobEntity(
+                                jobId = jId,
+                                episodeId = epId,
+                                title = "SmartKids Bölüm: $epId ($lang)",
+                                languageCode = lang,
+                                status = state,
+                                deterministicSeed = if (j.isNull("deterministic_seed")) "" else j.optString("deterministic_seed", ""),
+                                renderDurationSeconds = j.optDouble("render_duration_sec", 0.0).let { if (it.isNaN()) 0.0 else it },
+                                youtubeVideoId = ytId,
+                                costUsd = j.optDouble("cost_usd", 0.0).let { if (it.isNaN()) 0.0 else it },
+                                technicalQaPassed = j.optBoolean("technical_qa_passed", false),
+                                educationalQaPassed = j.optBoolean("educational_qa_passed", false),
+                                logMessage = buildString {
+                                    append("Bulut durumu: $state")
+                                    if (proc.isNotBlank()) append(" | YouTube işleme: $proc")
+                                    if (ytId.isNotBlank()) append(" | https://youtu.be/$ytId")
+                                    if (err.isNotBlank()) append(" | HATA: $err")
+                                },
+                                updatedAt = if (updated > 0L) updated else System.currentTimeMillis()
+                            )
                         )
-                        database.pipelineDao().insertJob(entity)
+                    }
+                    // Replace, don't merge: removes stale local-only/fake rows that never existed in the cloud.
+                    database.withTransaction {
+                        database.pipelineDao().deleteAllJobs()
+                        database.pipelineDao().insertJobs(cloudJobs)
                     }
                 }
                 jobsConn.disconnect()
@@ -655,43 +643,12 @@ class SmartKidsRepository(
         }
     }
 
-    suspend fun triggerGitHubWorkflowDispatch(episodeId: String, languageCode: String): Result<String> = withContext(Dispatchers.IO) {
-        try {
-            val pat = com.example.BuildConfig.GITHUB_PAT
-            if (pat.isBlank() || pat == "DEFAULT_GITHUB_PAT") {
-                return@withContext Result.failure(Exception("GitHub PAT yapılandırılmamış."))
-            }
-
-            val url = java.net.URL("https://api.github.com/repos/MamiAga/smartkids-factory/actions/workflows/production_pipeline.yml/dispatches")
-            val conn = url.openConnection() as java.net.HttpURLConnection
-            conn.requestMethod = "POST"
-            conn.setRequestProperty("Authorization", "Bearer $pat")
-            conn.setRequestProperty("Accept", "application/vnd.github+json")
-            conn.setRequestProperty("User-Agent", "SmartKids-Android-Cockpit")
-            conn.setRequestProperty("Content-Type", "application/json")
-            conn.connectTimeout = 8000
-            conn.readTimeout = 8000
-            conn.doOutput = true
-
-            val body = """{"ref":"main","inputs":{"episode_id":"$episodeId","language":"$languageCode"}}"""
-            conn.outputStream.use { os ->
-                os.write(body.toByteArray(Charsets.UTF_8))
-            }
-
-            val code = conn.responseCode
-            if (code in 200..204) {
-                conn.disconnect()
-                recordSystemEvent("GITHUB_DISPATCH", "GitHub Actions workflow_dispatch başarıyla tetiklendi ($episodeId / $languageCode)")
-                Result.success("GitHub Actions 'Production Pipeline' başlatıldı (HTTP $code)!")
-            } else {
-                val err = conn.errorStream?.bufferedReader()?.use { it.readText() } ?: "HTTP $code"
-                conn.disconnect()
-                Result.failure(Exception("GitHub API $code: $err"))
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
+    /** Manual single-job debug run (production_pipeline.yml). Idempotent on the cloud side. */
+    suspend fun triggerGitHubWorkflowDispatch(episodeId: String, languageCode: String): Result<String> =
+        dispatchWorkflow(
+            "production_pipeline.yml",
+            """{"ref":"main","inputs":{"episode_id":"$episodeId","language":"$languageCode"}}"""
+        )
 
     private fun parseIsoTimestamp(isoString: String?): Long {
         if (isoString.isNullOrBlank() || isoString == "null") return 0L
@@ -709,30 +666,74 @@ class SmartKidsRepository(
         }
     }
 
-    private suspend fun syncControlToSupabase(enabled: Boolean, dailyEpisodes: Int, languagesJson: String) = withContext(Dispatchers.IO) {
+    private suspend fun syncControlToSupabase(enabled: Boolean, dailyEpisodes: Int, languagesJson: String): Boolean =
+        patchControlRemote("""{"enabled":$enabled,"daily_master_episodes":$dailyEpisodes,"active_languages":$languagesJson}""")
+
+    /** PATCH automation_control id=1. Returns true only on HTTP 2xx (errors are no longer swallowed). */
+    private suspend fun patchControlRemote(jsonPayload: String): Boolean = withContext(Dispatchers.IO) {
         try {
             val supabaseUrl = com.example.BuildConfig.SUPABASE_URL.trimEnd('/')
             val anonKey = com.example.BuildConfig.SUPABASE_ANON_KEY
-            if (supabaseUrl.isNotEmpty() && anonKey.isNotEmpty() && !supabaseUrl.contains("DEFAULT_")) {
-                val url = java.net.URL("$supabaseUrl/rest/v1/automation_control?id=eq.1")
-                val conn = url.openConnection() as java.net.HttpURLConnection
-                conn.requestMethod = "PATCH"
-                conn.setRequestProperty("apikey", anonKey)
-                conn.setRequestProperty("Authorization", "Bearer $anonKey")
-                conn.setRequestProperty("Content-Type", "application/json")
-                conn.setRequestProperty("Prefer", "return=minimal")
-                conn.connectTimeout = 4000
-                conn.readTimeout = 4000
-                conn.doOutput = true
-                val jsonPayload = """{"enabled":$enabled,"daily_master_episodes":$dailyEpisodes,"active_languages":$languagesJson}"""
-                conn.outputStream.use { os ->
-                    os.write(jsonPayload.toByteArray(Charsets.UTF_8))
-                }
-                conn.responseCode
+            if (supabaseUrl.isEmpty() || anonKey.isEmpty() || supabaseUrl.contains("DEFAULT_")) return@withContext false
+            val url = java.net.URL("$supabaseUrl/rest/v1/automation_control?id=eq.1")
+            val conn = url.openConnection() as java.net.HttpURLConnection
+            conn.requestMethod = "PATCH"
+            conn.setRequestProperty("apikey", anonKey)
+            conn.setRequestProperty("Authorization", "Bearer $anonKey")
+            conn.setRequestProperty("Content-Type", "application/json")
+            // return=representation: an RLS-blocked PATCH returns 200 with [] -> we detect it as failure
+            conn.setRequestProperty("Prefer", "return=representation")
+            conn.connectTimeout = 8000
+            conn.readTimeout = 8000
+            conn.doOutput = true
+            conn.outputStream.use { it.write(jsonPayload.toByteArray(Charsets.UTF_8)) }
+            val code = conn.responseCode
+            val body = if (code in 200..299) conn.inputStream.bufferedReader().use { it.readText() } else ""
+            conn.disconnect()
+            code in 200..299 && body.trim().let { it.startsWith("[") && it != "[]" }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Android START -> run the ONE production entry point (smartkids_factory.yml) immediately.
+     * The workflow itself re-checks enabled / daily target / idempotency, so pressing START
+     * twice can never produce a duplicate video.
+     */
+    suspend fun triggerFactoryRunNow(): Result<String> =
+        dispatchWorkflow("smartkids_factory.yml", """{"ref":"main","inputs":{"run_now":"true"}}""")
+
+    private suspend fun dispatchWorkflow(workflowFile: String, body: String): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val pat = com.example.BuildConfig.GITHUB_PAT
+            if (pat.isBlank() || pat == "DEFAULT_GITHUB_PAT") {
+                return@withContext Result.failure(Exception("GitHub PAT yapılandırılmamış (.env GITHUB_PAT). Fabrika yine de saatlik zamanlayıcıyla çalışır."))
+            }
+            val url = java.net.URL("https://api.github.com/repos/MamiAga/smartkids-factory/actions/workflows/$workflowFile/dispatches")
+            val conn = url.openConnection() as java.net.HttpURLConnection
+            conn.requestMethod = "POST"
+            conn.setRequestProperty("Authorization", "Bearer $pat")
+            conn.setRequestProperty("Accept", "application/vnd.github+json")
+            conn.setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
+            conn.setRequestProperty("User-Agent", "SmartKids-Android-Cockpit")
+            conn.setRequestProperty("Content-Type", "application/json")
+            conn.connectTimeout = 8000
+            conn.readTimeout = 8000
+            conn.doOutput = true
+            conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+            val code = conn.responseCode
+            if (code in 200..204) {
                 conn.disconnect()
+                recordSystemEvent("GITHUB_DISPATCH", "GitHub Actions $workflowFile tetiklendi (HTTP $code)")
+                Result.success("GitHub Actions $workflowFile başlatıldı (HTTP $code)")
+            } else {
+                val err = conn.errorStream?.bufferedReader()?.use { it.readText() } ?: "HTTP $code"
+                conn.disconnect()
+                Result.failure(Exception("GitHub API $code: ${err.take(200)}"))
             }
         } catch (e: Exception) {
-            // Non-blocking: remote sync is best effort when online; local DB remains consistent
+            Result.failure(e)
         }
     }
 }
