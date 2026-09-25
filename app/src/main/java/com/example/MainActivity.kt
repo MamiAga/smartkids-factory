@@ -161,7 +161,7 @@ fun MainApp(mainViewModel: MainViewModel = viewModel()) {
                     onQuickDispatch = { epId, lang ->
                         mainViewModel.dispatchProductionWorkflow(epId, lang)
                     },
-                    onStepJob = { mainViewModel.stepPipelineJob(it) }
+                    onStepJob = null // job stages are driven by the cloud runner only
                 )
                 AppTab.VOICE_REGISTRY -> VoiceRegistryScreen(
                     voices = voices,
