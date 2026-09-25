@@ -1,133 +1,113 @@
 name: SmartKids Production Pipeline (ARM64 Ubuntu 24.04)
 
+# Manual single-job tool (debug / re-test one episode+language).
+# Daily autonomous production runs through smartkids_factory.yml, NOT this file.
+# Idempotent: if the job already has a YouTube video, the upload is skipped (no duplicate).
+
 on:
   workflow_dispatch:
     inputs:
       episode_id:
-        description: 'Episode DNA ID'
+        description: 'Episode ID from backend/engine/curriculum.py'
         required: true
         default: 'EP-COLORS-5-V1'
       language:
-        description: 'Target Language (EN)'
+        description: 'Target language (EN)'
         required: true
         default: 'EN'
+      dry_run:
+        description: 'Render + QA only (no YouTube upload, no Supabase write)'
+        type: boolean
+        default: false
+      publish:
+        description: 'Privacy after processing + SKQS-1 gate'
+        type: choice
+        options: [PRIVATE, UNLISTED, PUBLIC]
+        default: PRIVATE
+
+concurrency:
+  group: smartkids-cloud-factory   # never run in parallel with the autonomous factory
+  cancel-in-progress: false
 
 jobs:
   produce_and_verify:
     runs-on: ubuntu-24.04-arm
     name: Production Pipeline Runner (ubuntu-24.04-arm)
     timeout-minutes: 45
-
+    env:
+      ALLOW_PAID_SERVICES: 'false'
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v7
 
-      - name: Runner Architecture & System Diagnostics
-        run: |
-          echo "=========================================="
-          echo "GITHUB ACTIONS RUNNER SYSTEM DIAGNOSTICS"
-          echo "=========================================="
-          echo "Runner Architecture:"
-          uname -m
-          echo "Kernel Info:"
-          uname -a
-          echo "Python Version:"
-          python3 --version
-          echo "Memory Info:"
-          free -h
-          echo "Disk Usage:"
-          df -h
-          echo "=========================================="
-          ARCH=$(uname -m)
-          if [ "$ARCH" != "aarch64" ]; then
-            echo "WARNING: Expected aarch64 on ubuntu-24.04-arm, but got $ARCH"
-          else
-            echo "VERIFIED: Running on native ARM64 (aarch64) hardware."
-          fi
+      - name: Runner diagnostics
+        run: uname -a && python3 --version && free -h && df -h /
 
-      - name: Setup Python 3.11
-        uses: actions/setup-python@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.11'
-          cache: 'pip'
 
-      - name: Install System Utilities (FFmpeg, Audio Libraries, DejaVu Fonts)
+      - name: Install FFmpeg, fonts (DejaVu + Noto Color Emoji), Pillow
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core
+          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core fonts-noto-color-emoji
+          pip install -q pillow==12.*
 
-      - name: Download & Install Piper TTS Engine (Architecture-Aware)
+      - name: Install Piper TTS (architecture-aware)
         run: |
           ARCH=$(uname -m)
+          TAR_FILE=$([ "$ARCH" = "aarch64" ] && echo piper_linux_aarch64.tar.gz || echo piper_linux_x86_64.tar.gz)
           mkdir -p /tmp/piper_install
-          if [ "$ARCH" = "aarch64" ]; then
-            TAR_FILE="piper_linux_aarch64.tar.gz"
-          else
-            TAR_FILE="piper_linux_x86_64.tar.gz"
-          fi
-          echo "Fetching Piper binary for $ARCH: $TAR_FILE"
-          curl -sL "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/$TAR_FILE" | tar -xz -C /tmp/piper_install
+          curl -fsSL "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/$TAR_FILE" | tar -xz -C /tmp/piper_install
           sudo cp -r /tmp/piper_install/piper/* /usr/local/bin/
-          piper --version
 
-      - name: Install Python Production Dependencies
-        run: |
-          pip install --upgrade pip
-          pip install requests psycopg2-binary google-auth google-auth-oauthlib google-api-python-client
+      - name: Unit tests
+        run: python3 -m unittest discover -s backend/tests -v
 
-      - name: Cache & Download Piper Voice Model
-        run: |
-          python3 backend/tools/download_models.py --languages "${{ github.event.inputs.language || 'EN' }}"
+      - name: Download Piper voice
+        run: python3 backend/tools/download_models.py --languages "${{ inputs.language }}"
 
-      - name: Execute Autonomous Production Orchestrator
+      - name: Run production job
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN_EN: ${{ secrets.YOUTUBE_REFRESH_TOKEN_EN }}
         run: |
+          FLAGS="--strict-supabase --publish ${{ inputs.publish }}"
+          [ "${{ inputs.dry_run }}" = "true" ] && FLAGS="--dry-run"
           python3 backend/engine/production_runner.py \
-            --episode "${{ github.event.inputs.episode_id || 'EP-COLORS-5-V1' }}" \
-            --language "${{ github.event.inputs.language || 'EN' }}" \
-            --strict-supabase
+            --episode "${{ inputs.episode_id }}" --language "${{ inputs.language }}" $FLAGS
 
-      - name: Verify Supabase Production Record
+      - name: Verify Supabase record
+        if: ${{ !inputs.dry_run }}
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          EPISODE_ID: ${{ inputs.episode_id }}
+          LANGUAGE: ${{ inputs.language }}
         run: |
-          python3 -c "
-          import os, sys, json, urllib.request
-          url = os.environ.get('SUPABASE_URL')
-          key = os.environ.get('SUPABASE_SECRET_KEY')
-          if not url or not key:
-              print('SUPABASE CHECK: Secrets not configured in environment, failing step.')
-              sys.exit(1)
-          endpoint = f'{url.rstrip(\"/\")}/rest/v1/pipeline_jobs?episode_id=eq.EP-COLORS-5-V1&language=eq.EN&order=created_at.desc&limit=1'
-          req = urllib.request.Request(endpoint, headers={'apikey': key, 'Authorization': f'Bearer {key}'})
-          with urllib.request.urlopen(req) as resp:
-              data = json.loads(resp.read().decode('utf-8'))
-              if not data:
-                  print('SUPABASE CHECK FAILED: No record found for EP-COLORS-5-V1 EN')
-                  sys.exit(1)
-              record = data[0]
-              print('SUPABASE RECORD VERIFIED:')
-              print(f'  Job ID: {record.get(\"job_id\")}')
-              print(f'  State: {record.get(\"state\")}')
-              print(f'  YouTube Video ID: {record.get(\"youtube_video_id\")}')
-              print(f'  Processing Status: {record.get(\"processing_status\")}')
-              print(f'  Privacy Status: {record.get(\"youtube_privacy_status\")}')
-          "
+          python3 - <<'EOF'
+          import os, sys
+          sys.path.insert(0, os.getcwd())
+          from backend.engine.production_runner import make_job_id
+          from backend.engine.supabase_rest import SupabaseREST
+          job_id, _ = make_job_id(os.environ["EPISODE_ID"], os.environ["LANGUAGE"].upper())
+          rec = SupabaseREST().get_job(job_id)
+          if not rec:
+              sys.exit(f"SUPABASE CHECK FAILED: {job_id} not found")
+          for k in ("job_id", "state", "youtube_video_id", "processing_status", "youtube_privacy_status", "updated_at"):
+              print(f"  {k}: {rec.get(k)}")
+          EOF
 
-      - name: Archive Production Run Artifacts
+      - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: production-audit-artifacts
+          name: production-audit-${{ github.run_id }}
           path: |
-            backend/production_run.log
             /tmp/smartkids_output/*.json
             /tmp/smartkids_output/*.mp4
+            /tmp/smartkids_output/*.jpg
+          if-no-files-found: ignore
           retention-days: 7

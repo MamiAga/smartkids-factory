@@ -1,95 +1,99 @@
 name: SmartKids Cloud Autonomous Factory (ARM64 Ubuntu 24.04)
 
+# ONE production entry point for both paths:
+#   * hourly cron  -> gate decides (enabled? schedule_time reached? daily target left?)
+#   * Android START -> workflow_dispatch with run_now=true (skips only the schedule_time wait)
+# The cheap "gate" job runs every hour; the heavy ARM64 "produce" job only when there is work.
+
 on:
   schedule:
-    # Autonomous hourly check (checks automation_control.enabled, heartbeat, and runs scheduled daily cycles)
-    - cron: '0 * * * *'
+    - cron: '17 * * * *'   # off the :00 peak, GitHub drops/delays many :00 schedules
   workflow_dispatch:
     inputs:
-      force_run:
-        description: 'Force execution cycle regardless of automation_control.enabled'
+      run_now:
+        description: 'Ignore schedule_time and produce now (Android START)'
         type: boolean
-        required: false
         default: false
-      strict_supabase:
-        description: 'Enforce strict remote Supabase sync requirement'
+      force_run:
+        description: 'Maintenance: run even if automation_control.enabled = false'
         type: boolean
-        required: false
         default: false
 
 concurrency:
   group: smartkids-cloud-factory
   cancel-in-progress: false
 
-jobs:
-  autonomous_factory_cycle:
-    runs-on: ubuntu-24.04-arm
-    name: Cloud Production Factory (ubuntu-24.04-arm)
-    timeout-minutes: 60
+env:
+  ALLOW_PAID_SERVICES: 'false'
 
+jobs:
+  gate:
+    name: Gate + heartbeat
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    outputs:
+      should_run: ${{ steps.plan.outputs.should_run }}
+      languages: ${{ steps.plan.outputs.languages }}
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+      - name: Decide
+        id: plan
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: |
+          FLAGS="--gate-only"
+          [ "${{ inputs.run_now }}" = "true" ] && FLAGS="$FLAGS --run-now"
+          [ "${{ inputs.force_run }}" = "true" ] && FLAGS="$FLAGS --force"
+          python3 backend/engine/factory_orchestrator.py $FLAGS
+
+  produce:
+    name: Cloud Production Factory (ubuntu-24.04-arm)
+    needs: gate
+    if: needs.gate.outputs.should_run == 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 1
 
-      - name: Runner Architecture & Hardware Diagnostics
+      - name: Runner diagnostics
         run: |
-          echo "=============================================================="
-          echo "SMARTKIDS AUTONOMOUS RUNNER — ARCHITECTURE DIAGNOSTICS"
-          echo "=============================================================="
-          echo -n "Runner Architecture: " && uname -m
-          echo -n "Kernel Release:      " && uname -r
-          echo -n "Operating System:    " && cat /etc/os-release | grep PRETTY_NAME | cut -d= -f2
-          echo -n "Python Version:      " && python3 --version
-          echo "Hardware CPU Cores:   $(nproc)"
-          echo "Total Memory:"
-          free -h
-          echo "Disk Allocation:"
-          df -h /
-          echo "=============================================================="
-          ARCH=$(uname -m)
-          if [ "$ARCH" != "aarch64" ]; then
-            echo "::warning::Runner architecture is $ARCH (expected aarch64 on ubuntu-24.04-arm)"
-          else
-            echo "VERIFIED: Running on native ARM64 (aarch64) production hardware."
-          fi
+          echo "arch=$(uname -m) cores=$(nproc)"; free -h; df -h /
+          [ "$(uname -m)" = "aarch64" ] || echo "::warning::expected aarch64, got $(uname -m)"
 
-      - name: Setup Python 3.11
-        uses: actions/setup-python@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.11'
-          cache: 'pip'
 
-      - name: Install System Utilities (FFmpeg, Audio Libraries, DejaVu Fonts)
+      - name: Install FFmpeg, fonts (DejaVu + Noto Color Emoji), Pillow
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core libsndfile1
+          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core fonts-noto-color-emoji
+          pip install -q pillow==12.*
 
-      - name: Download & Install Piper TTS Engine (ARM64 Native)
+      - name: Install Piper TTS (ARM64)
         run: |
           ARCH=$(uname -m)
+          TAR_FILE=$([ "$ARCH" = "aarch64" ] && echo piper_linux_aarch64.tar.gz || echo piper_linux_x86_64.tar.gz)
           mkdir -p /tmp/piper_install
-          if [ "$ARCH" = "aarch64" ]; then
-            TAR_FILE="piper_linux_aarch64.tar.gz"
-          else
-            TAR_FILE="piper_linux_x86_64.tar.gz"
-          fi
-          echo "Fetching Piper binary for $ARCH: $TAR_FILE"
-          curl -sL "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/$TAR_FILE" | tar -xz -C /tmp/piper_install
+          curl -fsSL "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/$TAR_FILE" | tar -xz -C /tmp/piper_install
           sudo cp -r /tmp/piper_install/piper/* /usr/local/bin/
-          piper --version
+          piper --help > /dev/null && echo "piper OK"
 
-      - name: Install Python Dependencies
-        run: |
-          pip install --upgrade pip
-          pip install requests psycopg2-binary google-auth google-auth-oauthlib google-api-python-client
+      - name: Unit tests (decision logic + curriculum QA)
+        run: python3 -m unittest discover -s backend/tests -v
 
-      - name: Cache & Download Piper Voice Models
-        run: |
-          python3 backend/tools/download_models.py --languages EN
+      - name: Download Piper voices for active languages
+        run: python3 backend/tools/download_models.py --languages ${{ needs.gate.outputs.languages }}
 
-      - name: Execute Autonomous Cloud Factory Engine
+      - name: Run factory cycle
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -97,30 +101,23 @@ jobs:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN_EN: ${{ secrets.YOUTUBE_REFRESH_TOKEN_EN }}
-          ALLOW_PAID_SERVICES: 'false'
+          YOUTUBE_REFRESH_TOKEN_ES: ${{ secrets.YOUTUBE_REFRESH_TOKEN_ES }}
+          YOUTUBE_REFRESH_TOKEN_DE: ${{ secrets.YOUTUBE_REFRESH_TOKEN_DE }}
+          YOUTUBE_REFRESH_TOKEN_FR: ${{ secrets.YOUTUBE_REFRESH_TOKEN_FR }}
+          YOUTUBE_REFRESH_TOKEN_PT: ${{ secrets.YOUTUBE_REFRESH_TOKEN_PT }}
         run: |
-          FLAGS=""
-          if [ "${{ github.event.inputs.force_run }}" = "true" ]; then
-            FLAGS="$FLAGS --force"
-          fi
-          if [ "${{ github.event.inputs.strict_supabase }}" = "true" ]; then
-            FLAGS="$FLAGS --strict-supabase"
-          fi
-
-          echo "Launching Autonomous Factory Orchestrator with flags: $FLAGS"
+          FLAGS="--strict-supabase"
+          [ "${{ inputs.run_now }}" = "true" ] && FLAGS="$FLAGS --run-now"
+          [ "${{ inputs.force_run }}" = "true" ] && FLAGS="$FLAGS --force"
           python3 backend/engine/factory_orchestrator.py $FLAGS
 
-      - name: Safe Heartbeat Activity
-        run: |
-          echo "Autonomous Factory Heartbeat completed at $(date -u)" > .github/HEARTBEAT_TIMESTAMP
-          echo "Heartbeat verified. Public repository scheduler remains active."
-
-      - name: Upload Run Audit Artifacts
+      - name: Upload run audit
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: cloud-factory-run-audit
+          name: cloud-factory-run-${{ github.run_id }}
           path: |
-            /tmp/smartkids_output/production_run_summary.json
-            .github/HEARTBEAT_TIMESTAMP
+            /tmp/smartkids_output/*.json
+            /tmp/smartkids_output/*.jpg
           if-no-files-found: ignore
+          retention-days: 7
