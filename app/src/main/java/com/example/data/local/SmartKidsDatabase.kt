@@ -55,6 +55,13 @@ interface PipelineDao {
 
     @Query("DELETE FROM pipeline_jobs WHERE jobId = :id")
     suspend fun deleteJob(id: String)
+
+    // Supabase is the source of truth: the local table is replaced by the cloud list on every sync.
+    @Query("DELETE FROM pipeline_jobs")
+    suspend fun deleteAllJobs()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertJobs(jobs: List<PipelineJobEntity>)
 }
 
 @Dao
