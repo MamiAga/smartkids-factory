@@ -1,365 +1,271 @@
 #!/usr/bin/env python3
-"""
-SmartKids Autonomous Cloud Production Factory Engine
-Zero-Cost (0 TL) Architecture:
-  GitHub Actions (ubuntu-24.04-arm) + Supabase PostgreSQL + Piper TTS + FFmpeg + YouTube Data API v3
+"""SmartKids Autonomous Cloud Factory — scheduler + dispatcher.
 
-Source of Truth: Supabase PostgreSQL 'automation_control' table.
-The Android app acts as the Remote Kumanda (Control Center).
-When the user clicks [START], automation_control.enabled = true.
-When the phone is off, this factory runs continuously and autonomously in GitHub Actions ARM64.
-"""
+Runs from .github/workflows/smartkids_factory.yml (hourly cron + Android START dispatch).
 
-import os
-import sys
-import json
-import time
-import math
-import wave
-import struct
-import logging
+Decision rules (all state lives in Supabase automation_control / pipeline_jobs):
+  1. enabled = false                         -> STANDBY (heartbeat only, nothing produced)
+  2. before schedule_time (in `timezone`)    -> WAITING, unless --run-now (Android START)
+  3. per language, videos already produced today >= daily_master_episodes -> DONE for today
+  4. 3 failures for a language today, or a quota pause today -> that language waits for tomorrow
+  5. next episode = first curriculum episode that has no YouTube video for that language
+     (no episode left -> CONTENT_EXHAUSTED, never a duplicate upload)
+One language failing never stops the other languages.
+"""
 import argparse
+import json
+import logging
+import os
 import platform
-import subprocess
-import urllib.request
-import urllib.error
-import urllib.parse
-from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional
+import sys
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional
+from zoneinfo import ZoneInfo
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s"
-)
-logger = logging.getLogger("SmartKidsFactory")
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+from backend.engine.curriculum import CATALOG  # noqa: E402
+from backend.engine.supabase_rest import SupabaseREST, utc_now_iso  # noqa: E402
 
-# Invariants
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logger = logging.getLogger("smartkids.factory")
+
 ALLOW_PAID_SERVICES = False
 OUTPUT_DIR = "/tmp/smartkids_output"
-SCRATCH_DIR = "/tmp/smartkids_scratch"
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-os.makedirs(SCRATCH_DIR, exist_ok=True)
+MAX_FAILURES_PER_LANGUAGE_PER_DAY = 3
+
+PRODUCED_STATES = {"UPLOADED_PRIVATE", "PROCESSING", "PROCESSED_PRIVATE", "COMPLETED"}
+FAILED_STATES = {"FAILED_UPLOAD", "FAILED_QA", "QUARANTINED", "QUOTA_PAUSED"}
+PERMANENTLY_SKIPPED_STATES = PRODUCED_STATES | {"FAILED_QA", "QUARANTINED"}
+
+DEFAULT_CONTROL = {"enabled": False, "daily_master_episodes": 1, "schedule_time": "04:00",
+                   "timezone": "Europe/Istanbul", "active_languages": ["EN"]}
 
 
-class CloudControlClient:
-    """Manages reading and updating Supabase PostgreSQL state via REST."""
-    def __init__(self, supabase_url: Optional[str] = None, supabase_key: Optional[str] = None):
-        self.supabase_url = (supabase_url or os.getenv("SUPABASE_URL", "")).rstrip("/")
-        self.supabase_key = supabase_key or os.getenv("SUPABASE_SECRET_KEY", "")
-        self.is_connected = bool(self.supabase_url and self.supabase_key)
-        if not self.is_connected:
-            logger.warning("[Supabase] No remote credentials found; running in local sandbox fallback mode.")
-
-    def get_automation_control(self) -> Dict[str, Any]:
-        """Fetch singleton automation_control record (id=1)."""
-        if not self.is_connected:
-            # Fallback to local SQLite db_manager if present
-            try:
-                sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-                from backend.database.db_manager import DatabaseManager
-                db = DatabaseManager()
-                return db.get_automation_control()
-            except Exception as e:
-                logger.warning("[Local DB] Failed to read local sqlite automation_control: %s", e)
-                return {
-                    "id": 1,
-                    "enabled": False,
-                    "daily_master_episodes": 1,
-                    "schedule_time": "04:00",
-                    "timezone": "Europe/Istanbul",
-                    "active_languages": ["EN"],
-                    "active_channels": ["EN"],
-                    "generation_mode": "AUTONOMOUS",
-                    "publish_mode": "AUTO"
-                }
-
-        url = f"{self.supabase_url}/rest/v1/automation_control?id=eq.1&select=*"
-        headers = {
-            "apikey": self.supabase_key,
-            "Authorization": f"Bearer {self.supabase_key}",
-            "Accept": "application/json"
-        }
-        req = urllib.request.Request(url, headers=headers, method="GET")
-        try:
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-                if data and len(data) > 0:
-                    ctrl = data[0]
-                    if isinstance(ctrl.get("active_languages"), str):
-                        ctrl["active_languages"] = json.loads(ctrl["active_languages"])
-                    if isinstance(ctrl.get("active_channels"), str):
-                        ctrl["active_channels"] = json.loads(ctrl["active_channels"])
-                    return ctrl
-        except Exception as e:
-            logger.error("[Supabase] Error reading automation_control: %s", e)
-
-        return {
-            "id": 1,
-            "enabled": False,
-            "daily_master_episodes": 1,
-            "active_languages": ["EN"]
-        }
-
-    def update_heartbeat(self, runner_arch: str, current_job_id: Optional[str] = None):
-        """Update last_heartbeat timestamp in automation_control."""
-        now_iso = datetime.now(timezone.utc).isoformat()
-        if not self.is_connected:
-            try:
-                sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-                from backend.database.db_manager import DatabaseManager
-                db = DatabaseManager()
-                db.update_heartbeat(runner_arch=runner_arch, current_job_id=current_job_id)
-            except Exception:
-                pass
-            return
-
-        url = f"{self.supabase_url}/rest/v1/automation_control?id=eq.1"
-        headers = {
-            "apikey": self.supabase_key,
-            "Authorization": f"Bearer {self.supabase_key}",
-            "Content-Type": "application/json",
-            "Prefer": "return=minimal"
-        }
-        payload = {"last_heartbeat": now_iso}
-        if current_job_id:
-            payload["current_job_id"] = current_job_id
-
-        req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="PATCH")
-        try:
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                logger.info("[Supabase] Heartbeat recorded successfully at %s", now_iso)
-        except Exception as e:
-            logger.warning("[Supabase] Heartbeat update warning: %s", e)
-
-    def record_system_event(self, event_type: str, message: str, severity: str = "INFO", details: Optional[Dict[str, Any]] = None):
-        """Log system event to Supabase system_events table."""
-        if not self.is_connected:
-            return
-        url = f"{self.supabase_url}/rest/v1/system_events"
-        headers = {
-            "apikey": self.supabase_key,
-            "Authorization": f"Bearer {self.supabase_key}",
-            "Content-Type": "application/json",
-            "Prefer": "return=minimal"
-        }
-        payload = {
-            "event_type": event_type,
-            "severity": severity,
-            "message": message,
-            "details": details or {}
-        }
-        req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
-        try:
-            with urllib.request.urlopen(req, timeout=10):
-                pass
-        except Exception as e:
-            logger.warning("[Supabase] record_system_event warning: %s", e)
-
-    def record_health_snapshot(self, runner_arch: str, runner_status: str, yt_status: str):
-        """Record health check in Supabase health_snapshots table."""
-        if not self.is_connected:
-            return
-        url = f"{self.supabase_url}/rest/v1/health_snapshots"
-        headers = {
-            "apikey": self.supabase_key,
-            "Authorization": f"Bearer {self.supabase_key}",
-            "Content-Type": "application/json",
-            "Prefer": "return=minimal"
-        }
-        payload = {
-            "runner_arch": runner_arch,
-            "github_runner_status": runner_status,
-            "supabase_status": "ONLINE" if self.is_connected else "SANDBOX",
-            "gemini_status": "AUTHENTICATED" if os.getenv("GEMINI_API_KEY") else "MISSING",
-            "piper_status": "READY",
-            "ffmpeg_status": "READY",
-            "youtube_status": yt_status,
-            "cost_guard": "0_TL_FREE_ONLY"
-        }
-        req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
-        try:
-            with urllib.request.urlopen(req, timeout=10):
-                pass
-        except Exception as e:
-            logger.warning("[Supabase] record_health_snapshot warning: %s", e)
-
-    def complete_job_cycle(self, job_id: str, video_id: str, language: str):
-        """Mark job completed and record publication ledger."""
-        now_iso = datetime.now(timezone.utc).isoformat()
-        if not self.is_connected:
-            return
-
-        # 1. Update automation_control
-        url_ctrl = f"{self.supabase_url}/rest/v1/automation_control?id=eq.1"
-        headers = {
-            "apikey": self.supabase_key,
-            "Authorization": f"Bearer {self.supabase_key}",
-            "Content-Type": "application/json",
-            "Prefer": "return=minimal"
-        }
-        req_ctrl = urllib.request.Request(
-            url_ctrl,
-            data=json.dumps({"last_run_at": now_iso, "current_job_id": job_id}).encode("utf-8"),
-            headers=headers,
-            method="PATCH"
-        )
-        try:
-            with urllib.request.urlopen(req_ctrl, timeout=10):
-                pass
-        except Exception as e:
-            logger.warning("[Supabase] complete_job_cycle ctrl update warning: %s", e)
-
-        # 2. Insert into youtube_publications
-        url_pub = f"{self.supabase_url}/rest/v1/youtube_publications"
-        pub_payload = {
-            "publication_id": f"PUB-{job_id}",
-            "job_id": job_id,
-            "video_id": video_id,
-            "language": language,
-            "privacy_status": "private",
-            "processing_status": "succeeded",
-            "self_declared_made_for_kids": True
-        }
-        req_pub = urllib.request.Request(
-            url_pub,
-            data=json.dumps(pub_payload).encode("utf-8"),
-            headers=headers,
-            method="POST"
-        )
-        try:
-            with urllib.request.urlopen(req_pub, timeout=10):
-                logger.info("[Supabase] Logged publication PUB-%s for video %s", job_id, video_id)
-        except Exception as e:
-            logger.warning("[Supabase] publication insert warning: %s", e)
+# ----------------------------------------------------------------------------- pure logic
+def local_day_bounds(now_utc: datetime, tz_name: str, schedule_time: str):
+    tz = ZoneInfo(tz_name or "Europe/Istanbul")
+    now_local = now_utc.astimezone(tz)
+    midnight = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    try:
+        hh, mm = (int(x) for x in (schedule_time or "04:00").split(":")[:2])
+    except ValueError:
+        hh, mm = 4, 0
+    slot = midnight.replace(hour=hh, minute=mm)
+    return now_local, midnight, slot
 
 
+def _parse_ts(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def plan_cycle(control: Dict[str, Any], jobs_today: List[Dict[str, Any]], now_utc: datetime,
+               run_now: bool = False, force: bool = False) -> Dict[str, Any]:
+    """Decide whether this cycle should produce, and for which languages. Pure & unit-tested."""
+    enabled = bool(control.get("enabled")) or force
+    langs = [str(l).upper() for l in (control.get("active_languages") or ["EN"])]
+    daily = max(1, int(control.get("daily_master_episodes") or 1))
+    now_local, midnight, slot = local_day_bounds(now_utc, control.get("timezone"), control.get("schedule_time"))
+    next_slot = slot if now_local < slot else slot + timedelta(days=1)
+
+    plan = {"should_run": False, "languages": [], "per_language": {}, "now_local": now_local.isoformat(),
+            "slot_local": slot.isoformat(), "next_run_at": next_slot.astimezone(timezone.utc).isoformat()}
+    if not enabled:
+        plan["reason"] = "STANDBY: automation_control.enabled = false"
+        return plan
+    due = run_now or now_local >= slot
+    for lang in langs:
+        mine = [j for j in jobs_today if (j.get("language") or "").upper() == lang]
+        produced = sum(1 for j in mine if j.get("state") in PRODUCED_STATES)
+        failed = sum(1 for j in mine if j.get("state") in FAILED_STATES)
+        quota = any(j.get("state") == "QUOTA_PAUSED" for j in mine)
+        remaining = max(0, daily - produced)
+        if quota:
+            status = "QUOTA_PAUSED_TODAY"
+        elif failed >= MAX_FAILURES_PER_LANGUAGE_PER_DAY:
+            status = "LANGUAGE_PAUSED_TODAY"
+        elif remaining == 0:
+            status = "DONE_TODAY"
+        elif not due:
+            status = "WAITING_FOR_SLOT"
+        else:
+            status = "RUN"
+            plan["languages"].append(lang)
+        plan["per_language"][lang] = {"produced_today": produced, "failed_today": failed,
+                                      "remaining": remaining, "status": status}
+    plan["should_run"] = bool(plan["languages"])
+    if plan["should_run"]:
+        # if something is still to do today, the next hourly cycle is the retry point
+        plan["next_run_at"] = (now_utc + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0).isoformat()
+        plan["reason"] = "RUN: " + ", ".join(plan["languages"])
+    elif not due:
+        plan["reason"] = f"WAITING: schedule slot {slot.strftime('%H:%M')} {control.get('timezone')} not reached"
+    else:
+        plan["reason"] = "NOTHING TO DO: " + ", ".join(f"{l}={v['status']}" for l, v in plan["per_language"].items())
+    return plan
+
+
+def pick_next_episode(language: str, lang_jobs: List[Dict[str, Any]]) -> Optional[str]:
+    done = {j["episode_id"] for j in lang_jobs if j.get("state") in PERMANENTLY_SKIPPED_STATES}
+    for ep in CATALOG:
+        if ep["episode_id"] not in done:
+            return ep["episode_id"]
+    return None
+
+
+# ----------------------------------------------------------------------------- runtime
 class AutonomousFactoryOrchestrator:
-    """End-to-end Autonomous Cloud Factory."""
-
-    def __init__(self, force_run: bool = False, strict_supabase: bool = False):
-        self.force_run = force_run
+    def __init__(self, force: bool = False, run_now: bool = False, dry_run: bool = False,
+                 strict_supabase: bool = False):
+        self.force, self.run_now, self.dry_run = force, run_now, dry_run
         self.strict_supabase = strict_supabase
-        self.client = CloudControlClient()
-        self.runner_arch = platform.machine().lower()
+        self.db = SupabaseREST(dry_run=dry_run)
+        self.arch = platform.machine().lower()
+        if not self.db.connected and not dry_run:
+            raise RuntimeError("Production needs SUPABASE_URL + SUPABASE_SECRET_KEY (use --dry-run for local tests).")
+
+    def _control(self) -> Dict[str, Any]:
+        if self.dry_run:
+            return dict(DEFAULT_CONTROL, enabled=True)
+        ctrl = self.db.get_control()
+        if ctrl is None:
+            raise RuntimeError("automation_control row id=1 not readable (check secrets / table).")
+        return ctrl
+
+    def _jobs_today(self, control: Dict[str, Any]) -> List[Dict[str, Any]]:
+        if not self.db.connected:
+            return []
+        _, midnight, _ = local_day_bounds(datetime.now(timezone.utc), control.get("timezone"), control.get("schedule_time"))
+        return self.db.list_jobs(since_iso=midnight.astimezone(timezone.utc).isoformat())
+
+    def _still_enabled(self) -> bool:
+        if self.dry_run or self.force:
+            return True
+        ctrl = self.db.get_control()
+        return bool(ctrl and ctrl.get("enabled"))
+
+    def gate(self) -> Dict[str, Any]:
+        control = self._control()
+        plan = plan_cycle(control, self._jobs_today(control), datetime.now(timezone.utc),
+                          run_now=self.run_now, force=self.force)
+        self.db.heartbeat()
+        if not plan["should_run"]:
+            self.db.patch_control({"next_run_at": plan["next_run_at"]})
+        logger.info("[Gate] %s", plan["reason"])
+        return plan
 
     def run_cycle(self) -> Dict[str, Any]:
-        logger.info("================================================================")
-        logger.info("SMARTKIDS AUTONOMOUS CLOUD FACTORY — EXECUTION CYCLE")
-        logger.info("================================================================")
-        logger.info("Host Architecture: %s", self.runner_arch)
-        logger.info("Strict Zero-Cost Guard: ALLOW_PAID_SERVICES=%s (0 TL Invariant)", ALLOW_PAID_SERVICES)
+        logger.info("=" * 64)
+        logger.info("SMARTKIDS FACTORY CYCLE  arch=%s  paid_services=%s  dry_run=%s", self.arch, ALLOW_PAID_SERVICES, self.dry_run)
+        logger.info("=" * 64)
+        plan = self.gate()
+        result: Dict[str, Any] = {"plan": plan, "jobs": [], "errors": 0}
+        if not plan["should_run"]:
+            result["status"] = "IDLE"
+            return result
 
-        # 1. Read automation control
-        control = self.client.get_automation_control()
-        is_enabled = control.get("enabled", False)
-        daily_episodes = control.get("daily_master_episodes", 1)
-        active_languages = control.get("active_languages", ["EN"])
+        from backend.engine.production_runner import (ProductionEngine, LanguageNotReady, QuotaExceeded)
+        control = self._control()
+        engine = ProductionEngine(strict_supabase=self.strict_supabase, dry_run=self.dry_run, db=self.db,
+                                  stop_check=lambda: not self._still_enabled(),
+                                  publish_mode=str(control.get("publish_mode") or "PRIVATE"))
+        self.db.event("FACTORY_CYCLE_START", plan["reason"], details={"plan": plan["per_language"]})
+        quota_hit = False
 
-        logger.info("[Control State] enabled = %s", is_enabled)
-        logger.info("[Control State] daily_master_episodes = %d", daily_episodes)
-        logger.info("[Control State] active_languages = %s", active_languages)
+        for lang in plan["languages"]:
+            remaining = plan["per_language"][lang]["remaining"]
+            lang_jobs = self.db.list_jobs(language=lang) if self.db.connected else []
+            for _ in range(remaining):
+                if quota_hit:
+                    break
+                if not self._still_enabled():
+                    logger.info("[Factory] STOP received from Android — ending cycle.")
+                    result["status"] = "STOPPED"
+                    return self._finish(result, plan)
+                episode_id = pick_next_episode(lang, lang_jobs)
+                if episode_id is None:
+                    self.db.event("CONTENT_EXHAUSTED", f"No new curriculum episode left for {lang}", "WARNING")
+                    result["jobs"].append({"language": lang, "status": "CONTENT_EXHAUSTED"})
+                    break
+                try:
+                    res = engine.run_production(episode_id, lang)
+                    result["jobs"].append(res)
+                    lang_jobs.append({"episode_id": episode_id, "state": "PROCESSED_PRIVATE"})
+                    if res["status"] == "SUCCESS":
+                        self.db.event("EPISODE_PRODUCTION_SUCCESS",
+                                      f"{episode_id} [{lang}] -> https://youtu.be/{res['youtube_video_id']}",
+                                      details=res)
+                except LanguageNotReady as e:
+                    logger.warning("[%s] LANGUAGE_PAUSED: %s", lang, e)
+                    self.db.event("LANGUAGE_PAUSED", f"{lang}: {e}", "WARNING")
+                    result["jobs"].append({"language": lang, "status": "LANGUAGE_PAUSED", "reason": str(e)})
+                    break
+                except QuotaExceeded as e:
+                    logger.warning("[%s] QUOTA_PAUSED: %s", lang, e)
+                    self.db.event("QUOTA_PAUSED", f"{lang}: {e}", "WARNING")
+                    result["jobs"].append({"language": lang, "status": "QUOTA_PAUSED"})
+                    quota_hit = True  # 0 TL rule: pause, never fall back to a paid path
+                except Exception as e:
+                    logger.exception("[%s] job failed", lang)
+                    self.db.event("EPISODE_PRODUCTION_ERROR", f"{episode_id} [{lang}]: {e}", "ERROR")
+                    result["jobs"].append({"language": lang, "episode_id": episode_id, "status": "ERROR", "error": str(e)})
+                    result["errors"] += 1
+                    lang_jobs.append({"episode_id": episode_id, "state": "FAILED_QA"})  # try next episode next time
+                    break
+        result["status"] = "COMPLETED_WITH_ERRORS" if result["errors"] else "COMPLETED"
+        return self._finish(result, plan, control)
 
-        # Update heartbeat
-        self.client.update_heartbeat(runner_arch=self.runner_arch)
+    def _finish(self, result: Dict[str, Any], plan: Dict[str, Any], control: Optional[Dict[str, Any]] = None):
+        prev_failures = int((control or {}).get("failure_count") or 0)
+        self.db.patch_control({
+            "last_run_at": utc_now_iso(),
+            "last_heartbeat": utc_now_iso(),
+            "next_run_at": plan["next_run_at"],
+            "current_job_id": None,
+            "failure_count": prev_failures + 1 if result["errors"] else 0,
+        })
+        self.db.health_snapshot(self.arch, "ACTIVE", "QUOTA_PAUSED" if any(
+            j.get("status") == "QUOTA_PAUSED" for j in result["jobs"]) else "READY")
+        return result
 
-        # 2. Check if factory is enabled
-        if not is_enabled and not self.force_run:
-            logger.info("----------------------------------------------------------------")
-            logger.info("FACTORY STANDBY: automation_control.enabled is FALSE.")
-            logger.info("User has stopped the factory from the Android Control Center.")
-            logger.info("Standby mode engaged — no videos will be generated or uploaded.")
-            logger.info("Heartbeat confirmed. Exiting cleanly.")
-            logger.info("----------------------------------------------------------------")
-            self.client.record_system_event(
-                event_type="FACTORY_STANDBY",
-                message="Autonomous cycle skipped: factory paused by remote Android control.",
-                severity="INFO"
-            )
-            self.client.record_health_snapshot(self.runner_arch, "STANDBY", "IDLE")
-            return {
-                "status": "STANDBY",
-                "message": "Factory is disabled by remote Android kumanda. Heartbeat updated.",
-                "enabled": False,
-                "produced": 0
-            }
 
-        logger.info("----------------------------------------------------------------")
-        logger.info("FACTORY ACTIVE: automation_control.enabled is TRUE.")
-        logger.info("Autonomous cloud production cycle initiated!")
-        logger.info("----------------------------------------------------------------")
-
-        self.client.record_system_event(
-            event_type="FACTORY_CYCLE_START",
-            message=f"Starting autonomous factory run for {len(active_languages)} languages: {active_languages}",
-            severity="INFO"
-        )
-
-        # Target video count calculation
-        expected_daily_videos = daily_episodes * len(active_languages)
-        logger.info("[Target Calculation] Daily Expected Videos = %d master × %d langs = %d videos",
-                    daily_episodes, len(active_languages), expected_daily_videos)
-
-        # 3. Import and execute ProductionEngine for active languages
-        sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-        from backend.engine.production_runner import ProductionEngine
-
-        engine = ProductionEngine(strict_supabase=self.strict_supabase)
-        results = []
-
-        # Milestone episode: EP-COLORS-5-V1
-        episode_id = "EP-COLORS-5-V1"
-
-        for lang in active_languages:
-            logger.info(">>> Processing Autonomous Job: Episode %s [%s]", episode_id, lang)
-            res = engine.run_production(episode_id=episode_id, language=lang)
-            results.append(res)
-
-            if res.get("status") == "SUCCESS":
-                job_id = res.get("job_id", f"JOB-{lang}-{datetime.now().strftime('%Y%m%d')}")
-                video_id = res.get("youtube_video_id", "")
-                self.client.complete_job_cycle(job_id=job_id, video_id=video_id, language=lang)
-                self.client.record_system_event(
-                    event_type="EPISODE_PRODUCTION_SUCCESS",
-                    message=f"Successfully synthesized, rendered, verified, and uploaded {episode_id} [{lang}]. Video ID: {video_id}",
-                    severity="INFO",
-                    details={"job_id": job_id, "video_id": video_id, "language": lang}
-                )
-            else:
-                self.client.record_system_event(
-                    event_type="EPISODE_PRODUCTION_ERROR",
-                    message=f"Production error on {episode_id} [{lang}]: {res.get('error')}",
-                    severity="ERROR",
-                    details={"error": res.get("error"), "language": lang}
-                )
-
-        self.client.record_health_snapshot(self.runner_arch, "ACTIVE", "READY")
-
-        # Summary output
-        logger.info("================================================================")
-        logger.info("AUTONOMOUS FACTORY CYCLE COMPLETED")
-        logger.info("Processed: %d jobs", len(results))
-        logger.info("================================================================")
-
-        return {
-            "status": "COMPLETED",
-            "enabled": True,
-            "jobs_processed": len(results),
-            "results": results
-        }
+def _write_github_output(plan: Dict[str, Any]) -> None:
+    path = os.getenv("GITHUB_OUTPUT")
+    if not path:
+        return
+    with open(path, "a") as fh:
+        fh.write(f"should_run={'true' if plan['should_run'] else 'false'}\n")
+        fh.write(f"languages={' '.join(plan['languages']) or 'EN'}\n")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="SmartKids Autonomous Cloud Production Factory Engine")
-    parser.add_argument("--force", action="store_true", help="Force production run even if automation_control.enabled is false")
-    parser.add_argument("--strict-supabase", action="store_true", help="Fail if Supabase credentials are not found in environment")
-    args = parser.parse_args()
+    ap = argparse.ArgumentParser(description="SmartKids autonomous cloud factory")
+    ap.add_argument("--gate-only", action="store_true", help="only decide + heartbeat (cheap cron step)")
+    ap.add_argument("--run-now", action="store_true", help="ignore schedule_time (Android START)")
+    ap.add_argument("--force", action="store_true", help="ignore enabled=false (manual maintenance run)")
+    ap.add_argument("--dry-run", action="store_true", help="no Supabase, no YouTube; render + QA only")
+    ap.add_argument("--strict-supabase", action="store_true")
+    args = ap.parse_args()
 
-    orchestrator = AutonomousFactoryOrchestrator(
-        force_run=args.force,
-        strict_supabase=args.strict_supabase
-    )
-    result = orchestrator.run_cycle()
+    orch = AutonomousFactoryOrchestrator(force=args.force, run_now=args.run_now, dry_run=args.dry_run,
+                                         strict_supabase=args.strict_supabase)
+    if args.gate_only:
+        plan = orch.gate()
+        _write_github_output(plan)
+        print(json.dumps(plan, indent=2))
+        return
+
+    result = orch.run_cycle()
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    with open(os.path.join(OUTPUT_DIR, "production_run_summary.json"), "w") as fh:
+        json.dump(result, fh, indent=2, default=str)
     print(json.dumps(result, indent=2, default=str))
+    if result.get("errors"):
+        sys.exit(1)  # make failures visible as a red run in GitHub Actions
 
 
 if __name__ == "__main__":
