@@ -122,12 +122,12 @@ fun calculatePipelineProgress(
     isEnabled: Boolean,
     activeJob: PipelineJobEntity?
 ): Triple<Int, PipelineStageStep, String> {
-    if (!isEnabled && activeJob == null) {
-        return Triple(0, PipelineStageStep(0, "Fabrika Beklemede (PAUSED)", "Duraklatıldı", 0), "Durduruldu")
-    }
-
     if (activeJob == null) {
-        return Triple(1, STANDARD_60_PIPELINE_STEPS[0], "~3 dk")
+        return if (isEnabled) {
+            Triple(0, PipelineStageStep(0, "Fabrika Aktif (Bulut Görevi Bekleniyor)", "Hazır / Beklemede", 0), "Görev Bekleniyor")
+        } else {
+            Triple(0, PipelineStageStep(0, "Fabrika Beklemede (PAUSED)", "Duraklatıldı", 0), "Durduruldu")
+        }
     }
 
     val stepIndex = when (activeJob.status) {
@@ -140,9 +140,9 @@ fun calculatePipelineProgress(
         "UPLOADING" -> 54
         "UPLOADED" -> 56
         "PROCESSING" -> 58
-        "PROCESSED", "PUBLISHED", "COMPLETED" -> 60
+        "PROCESSED", "PUBLISHED", "COMPLETED", "PROCESSED_PRIVATE" -> 60
         "QA_FAILED", "QUARANTINED" -> 46
-        else -> 33
+        else -> 5
     }
 
     val currentStep = STANDARD_60_PIPELINE_STEPS.getOrElse(stepIndex - 1) { STANDARD_60_PIPELINE_STEPS.last() }
