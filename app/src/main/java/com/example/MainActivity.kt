@@ -159,8 +159,7 @@ fun MainApp(mainViewModel: MainViewModel = viewModel()) {
                     onSyncCloud = { mainViewModel.syncFromSupabase() },
                     isSyncing = isSyncing,
                     onQuickDispatch = { epId, lang ->
-                        val ep = episodes.find { it.episodeId == epId } ?: episodes.firstOrNull()
-                        if (ep != null) mainViewModel.createPipelineJobForLanguage(ep, lang)
+                        mainViewModel.dispatchProductionWorkflow(epId, lang)
                     },
                     onStepJob = { mainViewModel.stepPipelineJob(it) }
                 )

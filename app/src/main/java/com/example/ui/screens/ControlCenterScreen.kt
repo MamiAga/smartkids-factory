@@ -88,10 +88,11 @@ fun ControlCenterScreen(
     val pendingCount = jobs.count { it.status in listOf("PLANNED", "SCRIPTED", "LOCALIZED", "TTS_READY", "RENDERED", "QA_PASSED") }
     val failedCount = jobs.count { it.status in listOf("QA_FAILED", "QUARANTINED") }
 
-    // En son veya aktif olan iş
+    // Sadece gerçekten devam eden iş aktif iştir (tamamlanan veya karantinadakiler değil)
     val activeJob = jobs.firstOrNull {
-        it.status !in listOf("PUBLISHED", "COMPLETED", "PROCESSED", "PROCESSED_PRIVATE")
-    } ?: jobs.firstOrNull()
+        it.status !in listOf("PUBLISHED", "COMPLETED", "PROCESSED", "PROCESSED_PRIVATE", "QA_FAILED", "QUARANTINED")
+    }
+    val displayJob = activeJob ?: jobs.firstOrNull()
 
     LazyColumn(
         modifier = Modifier
@@ -194,8 +195,8 @@ fun ControlCenterScreen(
             )
         }
 
-        // 3. CANLI İŞ & YOUTUBE YAYIN TAKİP PANELİ
-        if (activeJob != null) {
+        // 3. CANLI İŞ VEYA SON ÜRETİM TAKİP PANELİ
+        if (displayJob != null) {
             item {
                 Card(
                     modifier = Modifier
@@ -204,7 +205,7 @@ fun ControlCenterScreen(
                         .testTag("active_job_cockpit_card"),
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    border = androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
+                    border = androidx.compose.foundation.BorderStroke(1.5.dp, if (activeJob != null) MaterialTheme.colorScheme.primary.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
                     Column(modifier = Modifier.padding(18.dp)) {
@@ -216,35 +217,43 @@ fun ControlCenterScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Surface(
                                     shape = RoundedCornerShape(6.dp),
-                                    color = MaterialTheme.colorScheme.primaryContainer
+                                    color = if (activeJob != null) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
                                 ) {
                                     Text(
-                                        text = activeJob.languageCode,
+                                        text = displayJob.languageCode,
                                         style = MaterialTheme.typography.labelMedium,
                                         fontWeight = FontWeight.Black,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        color = if (activeJob != null) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                     )
                                 }
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = activeJob.episodeId,
+                                    text = displayJob.episodeId,
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold
                                 )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                if (activeJob == null) {
+                                    Text(
+                                        text = "(Son Üretim)",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
                             }
 
                             StatusBadge(
-                                text = activeJob.status,
-                                isSuccess = activeJob.status in listOf("PUBLISHED", "PROCESSED", "PROCESSED_PRIVATE", "COMPLETED"),
-                                isWarning = activeJob.status in listOf("RENDERED", "UPLOADING", "UPLOADED", "PROCESSING")
+                                text = displayJob.status,
+                                isSuccess = displayJob.status in listOf("PUBLISHED", "PROCESSED", "PROCESSED_PRIVATE", "COMPLETED"),
+                                isWarning = displayJob.status in listOf("RENDERED", "UPLOADING", "UPLOADED", "PROCESSING")
                             )
                         }
 
                         Spacer(modifier = Modifier.height(10.dp))
 
                         Text(
-                            text = activeJob.title,
+                            text = displayJob.title,
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -261,9 +270,9 @@ fun ControlCenterScreen(
                                 modifier = Modifier
                                     .padding(horizontal = 12.dp, vertical = 8.dp)
                                     .clickable {
-                                        if (activeJob.youtubeVideoId.isNotBlank()) {
+                                        if (displayJob.youtubeVideoId.isNotBlank()) {
                                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                            clipboard.setPrimaryClip(ClipData.newPlainText("YouTube ID", activeJob.youtubeVideoId))
+                                            clipboard.setPrimaryClip(ClipData.newPlainText("YouTube ID", displayJob.youtubeVideoId))
                                         }
                                     },
                                 verticalAlignment = Alignment.CenterVertically,
@@ -278,13 +287,13 @@ fun ControlCenterScreen(
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = if (activeJob.youtubeVideoId.isNotBlank()) "YouTube Video ID: ${activeJob.youtubeVideoId}" else "YouTube Video ID: Bekleniyor...",
+                                        text = if (displayJob.youtubeVideoId.isNotBlank()) "YouTube Video ID: ${displayJob.youtubeVideoId}" else "YouTube Video ID: Bekleniyor...",
                                         style = MaterialTheme.typography.bodySmall,
                                         fontFamily = FontFamily.Monospace,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
-                                if (activeJob.youtubeVideoId.isNotBlank()) {
+                                if (displayJob.youtubeVideoId.isNotBlank()) {
                                     Icon(
                                         imageVector = Icons.Default.ContentCopy,
                                         contentDescription = "Kopyala",
@@ -315,7 +324,7 @@ fun ControlCenterScreen(
                             )
                         }
 
-                        if (onStepJob != null) {
+                        if (onStepJob != null && activeJob != null) {
                             Spacer(modifier = Modifier.height(10.dp))
                             OutlinedButton(
                                 onClick = { onStepJob(activeJob) },

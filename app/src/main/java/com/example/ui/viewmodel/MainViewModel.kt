@@ -281,6 +281,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun dispatchProductionWorkflow(episodeId: String, languageCode: String) {
+        viewModelScope.launch {
+            _isSyncing.value = true
+            _notification.value = UiNotification("GitHub Actions 'Production Pipeline' tetikleniyor ($episodeId, $languageCode)...")
+            val result = repository.triggerGitHubWorkflowDispatch(episodeId, languageCode)
+            if (result.isSuccess) {
+                val newJob = PipelineJobEntity(
+                    jobId = "JOB-$languageCode-$episodeId-${System.currentTimeMillis() % 1000}",
+                    episodeId = episodeId,
+                    title = "SmartKids Bölüm: $episodeId ($languageCode)",
+                    languageCode = languageCode,
+                    status = "PLANNED",
+                    deterministicSeed = repository.calculateDeterministicSeed(episodeId, languageCode, "2.0.0"),
+                    renderDurationSeconds = 0.0,
+                    costUsd = 0.0,
+                    technicalQaPassed = true,
+                    educationalQaPassed = true,
+                    logMessage = "GitHub Actions workflow_dispatch ile bulut üretimi tetiklendi. Runner: ubuntu-24.04-arm"
+                )
+                repository.saveJob(newJob)
+                _notification.value = UiNotification("✅ GitHub Actions Production Pipeline başlatıldı! Runner devreye giriyor.")
+            } else {
+                _notification.value = UiNotification("❌ GitHub tetikleme hatası: ${result.exceptionOrNull()?.message}", isError = true)
+            }
+            _isSyncing.value = false
+        }
+    }
+
     fun createPipelineJobForLanguage(episode: EpisodeDnaEntity, languageCode: String) {
         viewModelScope.launch {
             // Check if voice is approved & commercial safe
@@ -301,21 +329,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
 
-            val newJob = PipelineJobEntity(
-                jobId = "JOB-$languageCode-${episode.episodeId}-${System.currentTimeMillis() % 1000}",
-                episodeId = episode.episodeId,
-                title = "${episode.title} ($languageCode)",
-                languageCode = languageCode,
-                status = "RENDERED",
-                deterministicSeed = repository.calculateDeterministicSeed(episode.episodeId, languageCode, episode.version),
-                renderDurationSeconds = 45.0,
-                costUsd = 0.0,
-                technicalQaPassed = true,
-                educationalQaPassed = true,
-                logMessage = "Onaylı Piper sesi (${voice.modelName}) ile deterministik seed kullanılarak renderlandı."
-            )
-            repository.saveJob(newJob)
-            _notification.value = UiNotification("$languageCode için iş akışı görevi oluşturuldu.")
+            dispatchProductionWorkflow(episode.episodeId, languageCode)
         }
     }
 

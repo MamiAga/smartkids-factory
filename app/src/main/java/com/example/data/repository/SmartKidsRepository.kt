@@ -579,6 +579,8 @@ class SmartKidsRepository(
                     val channels = obj.opt("active_channels")?.toString() ?: "[\"EN\"]"
                     val failureCount = obj.optInt("failure_count", 0)
                     val currentJobId = if (obj.isNull("current_job_id")) null else obj.optString("current_job_id")
+                    val heartbeatStr = if (obj.isNull("last_heartbeat")) null else obj.optString("last_heartbeat")
+                    val cloudHeartbeat = parseIsoTimestamp(heartbeatStr)
 
                     val existing = database.automationControlDao().getControlSnapshot()
                     val updated = (existing ?: AutomationControlEntity(id = 1)).copy(
@@ -590,7 +592,7 @@ class SmartKidsRepository(
                         activeChannelsJson = channels,
                         failureCount = failureCount,
                         currentJobId = currentJobId,
-                        lastHeartbeat = System.currentTimeMillis()
+                        lastHeartbeat = cloudHeartbeat
                     )
                     database.automationControlDao().insertOrUpdate(updated)
                     recordSystemEvent("CLOUD_SYNC", "Supabase automation_control başarıyla senkronize edildi (enabled=$enabled, hedef=$daily)")
@@ -650,6 +652,60 @@ class SmartKidsRepository(
             return@withContext "Supabase bulut verileri başarıyla senkronize edildi!"
         } catch (e: Exception) {
             return@withContext "Senkronizasyon hatası: ${e.message}"
+        }
+    }
+
+    suspend fun triggerGitHubWorkflowDispatch(episodeId: String, languageCode: String): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val pat = com.example.BuildConfig.GITHUB_PAT
+            if (pat.isBlank() || pat == "DEFAULT_GITHUB_PAT") {
+                return@withContext Result.failure(Exception("GitHub PAT yapılandırılmamış."))
+            }
+
+            val url = java.net.URL("https://api.github.com/repos/MamiAga/smartkids-factory/actions/workflows/production_pipeline.yml/dispatches")
+            val conn = url.openConnection() as java.net.HttpURLConnection
+            conn.requestMethod = "POST"
+            conn.setRequestProperty("Authorization", "Bearer $pat")
+            conn.setRequestProperty("Accept", "application/vnd.github+json")
+            conn.setRequestProperty("User-Agent", "SmartKids-Android-Cockpit")
+            conn.setRequestProperty("Content-Type", "application/json")
+            conn.connectTimeout = 8000
+            conn.readTimeout = 8000
+            conn.doOutput = true
+
+            val body = """{"ref":"main","inputs":{"episode_id":"$episodeId","language":"$languageCode"}}"""
+            conn.outputStream.use { os ->
+                os.write(body.toByteArray(Charsets.UTF_8))
+            }
+
+            val code = conn.responseCode
+            if (code in 200..204) {
+                conn.disconnect()
+                recordSystemEvent("GITHUB_DISPATCH", "GitHub Actions workflow_dispatch başarıyla tetiklendi ($episodeId / $languageCode)")
+                Result.success("GitHub Actions 'Production Pipeline' başlatıldı (HTTP $code)!")
+            } else {
+                val err = conn.errorStream?.bufferedReader()?.use { it.readText() } ?: "HTTP $code"
+                conn.disconnect()
+                Result.failure(Exception("GitHub API $code: $err"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    private fun parseIsoTimestamp(isoString: String?): Long {
+        if (isoString.isNullOrBlank() || isoString == "null") return 0L
+        return try {
+            java.time.Instant.parse(isoString).toEpochMilli()
+        } catch (e: Exception) {
+            try {
+                val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US).apply {
+                    timeZone = java.util.TimeZone.getTimeZone("UTC")
+                }
+                sdf.parse(isoString.substring(0, 19))?.time ?: 0L
+            } catch (e2: Exception) {
+                0L
+            }
         }
     }
 

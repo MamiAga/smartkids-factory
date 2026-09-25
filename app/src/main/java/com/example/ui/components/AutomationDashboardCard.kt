@@ -122,12 +122,12 @@ fun calculatePipelineProgress(
     isEnabled: Boolean,
     activeJob: PipelineJobEntity?
 ): Triple<Int, PipelineStageStep, String> {
-    if (activeJob == null) {
-        return if (isEnabled) {
-            Triple(0, PipelineStageStep(0, "Fabrika Aktif (Bulut Görevi Bekleniyor)", "Hazır / Beklemede", 0), "Görev Bekleniyor")
-        } else {
-            Triple(0, PipelineStageStep(0, "Fabrika Beklemede (PAUSED)", "Duraklatıldı", 0), "Durduruldu")
-        }
+    if (!isEnabled) {
+        return Triple(0, PipelineStageStep(0, "Fabrika Duraklatıldı (PAUSED)", "Duraklatıldı", 0), "Durduruldu")
+    }
+
+    if (activeJob == null || activeJob.status in listOf("PUBLISHED", "COMPLETED", "PROCESSED", "PROCESSED_PRIVATE", "QA_FAILED", "QUARANTINED")) {
+        return Triple(0, PipelineStageStep(0, "Aktif Bulut İşi Yok (Beklemede)", "Boşta", 0), "—")
     }
 
     val stepIndex = when (activeJob.status) {
@@ -140,14 +140,11 @@ fun calculatePipelineProgress(
         "UPLOADING" -> 54
         "UPLOADED" -> 56
         "PROCESSING" -> 58
-        "PROCESSED", "PUBLISHED", "COMPLETED", "PROCESSED_PRIVATE" -> 60
-        "QA_FAILED", "QUARANTINED" -> 46
         else -> 5
     }
 
     val currentStep = STANDARD_60_PIPELINE_STEPS.getOrElse(stepIndex - 1) { STANDARD_60_PIPELINE_STEPS.last() }
 
-    // Kalan adımların tahmini süresini hesapla
     val remainingSteps = STANDARD_60_PIPELINE_STEPS.filter { it.stepIndex > stepIndex }
     val remainingSeconds = remainingSteps.sumOf { it.estimatedDurationSeconds }
     val etaString = when {
@@ -184,7 +181,8 @@ fun AutomationDashboardCard(
         calculatePipelineProgress(isEnabled, activeJob)
     }
 
-    val progressFraction = if (isEnabled) (currentStepIndex / 60f).coerceIn(0f, 1f) else 0f
+    val hasActiveRunningJob = isEnabled && activeJob != null && activeJob.status !in listOf("PUBLISHED", "COMPLETED", "PROCESSED", "PROCESSED_PRIVATE", "QA_FAILED", "QUARANTINED")
+    val progressFraction = if (hasActiveRunningJob) (currentStepIndex / 60f).coerceIn(0f, 1f) else 0f
 
     // Nabız / Çalışma animasyonu
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
@@ -322,13 +320,13 @@ fun AutomationDashboardCard(
 
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = if (isEnabled) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+                            color = if (hasActiveRunningJob) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
                         ) {
                             Text(
-                                text = if (isEnabled) "$currentStepIndex / 60 Adım" else "0 / 60 Adım",
+                                text = if (hasActiveRunningJob) "$currentStepIndex / 60 Adım" else "0 / 60 Adım (Boşta)",
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.Black,
-                                color = if (isEnabled) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.outline,
+                                color = if (hasActiveRunningJob) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.outline,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                             )
                         }
@@ -343,7 +341,7 @@ fun AutomationDashboardCard(
                             .fillMaxWidth()
                             .height(8.dp)
                             .clip(RoundedCornerShape(4.dp)),
-                        color = if (isEnabled) Color(0xFF2E7D32) else Color.Gray,
+                        color = if (hasActiveRunningJob) Color(0xFF2E7D32) else Color.Gray,
                         trackColor = MaterialTheme.colorScheme.surfaceVariant
                     )
 
@@ -357,15 +355,15 @@ fun AutomationDashboardCard(
                         Icon(
                             imageVector = Icons.Default.PlayArrow,
                             contentDescription = null,
-                            tint = if (isEnabled) Color(0xFF2E7D32) else Color.Gray,
+                            tint = if (hasActiveRunningJob) Color(0xFF2E7D32) else Color.Gray,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = if (isEnabled) "Mevcut Aşama: ${currentStage.stageName}" else "Mevcut Aşama: Üretim Duraklatıldı (Standby)",
+                            text = if (hasActiveRunningJob) "Mevcut Aşama: ${currentStage.stageName}" else if (isEnabled) "Mevcut Aşama: Aktif Bulut İşi Yok (Beklemede)" else "Mevcut Aşama: Üretim Duraklatıldı (Standby)",
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.Bold,
-                            color = if (isEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
+                            color = if (hasActiveRunningJob) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
                         )
                     }
 
@@ -391,10 +389,10 @@ fun AutomationDashboardCard(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                text = if (isEnabled) etaTime else "Beklemede",
+                                text = if (hasActiveRunningJob) etaTime else "—",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.ExtraBold,
-                                color = if (isEnabled) Color(0xFF1565C0) else Color.Gray
+                                color = if (hasActiveRunningJob) Color(0xFF1565C0) else Color.Gray
                             )
                         }
 
@@ -402,7 +400,7 @@ fun AutomationDashboardCard(
                             onClick = {},
                             label = {
                                 Text(
-                                    text = if (isEnabled) currentStage.stageCategory else "Kapalı",
+                                    text = if (hasActiveRunningJob) currentStage.stageCategory else if (isEnabled) "Beklemede" else "Kapalı",
                                     style = MaterialTheme.typography.labelSmall
                                 )
                             },
