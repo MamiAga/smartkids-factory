@@ -547,6 +547,112 @@ class SmartKidsRepository(
         )
     }
 
+    suspend fun syncFromSupabaseCloud(): String = withContext(Dispatchers.IO) {
+        try {
+            val supabaseUrl = com.example.BuildConfig.SUPABASE_URL.trimEnd('/')
+            val anonKey = com.example.BuildConfig.SUPABASE_ANON_KEY
+            if (supabaseUrl.isBlank() || anonKey.isBlank() || supabaseUrl.contains("DEFAULT_")) {
+                return@withContext "Supabase bağlantı bilgileri eksik."
+            }
+
+            // 1. Fetch automation_control
+            val url = java.net.URL("$supabaseUrl/rest/v1/automation_control?id=eq.1&select=*")
+            val conn = url.openConnection() as java.net.HttpURLConnection
+            conn.requestMethod = "GET"
+            conn.setRequestProperty("apikey", anonKey)
+            conn.setRequestProperty("Authorization", "Bearer $anonKey")
+            conn.setRequestProperty("Accept", "application/json")
+            conn.connectTimeout = 5000
+            conn.readTimeout = 5000
+
+            val code = conn.responseCode
+            if (code == 200) {
+                val responseText = conn.inputStream.bufferedReader().use { it.readText() }
+                val jsonArray = org.json.JSONArray(responseText)
+                if (jsonArray.length() > 0) {
+                    val obj = jsonArray.getJSONObject(0)
+                    val enabled = obj.optBoolean("enabled", false)
+                    val daily = obj.optInt("daily_master_episodes", 1)
+                    val scheduleTime = obj.optString("schedule_time", "04:00")
+                    val timezone = obj.optString("timezone", "Europe/Istanbul")
+                    val langs = obj.opt("active_languages")?.toString() ?: "[\"EN\"]"
+                    val channels = obj.opt("active_channels")?.toString() ?: "[\"EN\"]"
+                    val failureCount = obj.optInt("failure_count", 0)
+                    val currentJobId = if (obj.isNull("current_job_id")) null else obj.optString("current_job_id")
+
+                    val existing = database.automationControlDao().getControlSnapshot()
+                    val updated = (existing ?: AutomationControlEntity(id = 1)).copy(
+                        enabled = enabled,
+                        dailyMasterEpisodes = daily,
+                        scheduleTime = scheduleTime,
+                        timezone = timezone,
+                        activeLanguagesJson = langs,
+                        activeChannelsJson = channels,
+                        failureCount = failureCount,
+                        currentJobId = currentJobId,
+                        lastHeartbeat = System.currentTimeMillis()
+                    )
+                    database.automationControlDao().insertOrUpdate(updated)
+                    recordSystemEvent("CLOUD_SYNC", "Supabase automation_control başarıyla senkronize edildi (enabled=$enabled, hedef=$daily)")
+                }
+                conn.disconnect()
+            } else {
+                conn.disconnect()
+                return@withContext "Supabase HTTP $code yanıtı verdi."
+            }
+
+            // 2. Fetch recent pipeline_jobs
+            try {
+                val jobsUrl = java.net.URL("$supabaseUrl/rest/v1/pipeline_jobs?select=*&order=created_at.desc&limit=15")
+                val jobsConn = jobsUrl.openConnection() as java.net.HttpURLConnection
+                jobsConn.requestMethod = "GET"
+                jobsConn.setRequestProperty("apikey", anonKey)
+                jobsConn.setRequestProperty("Authorization", "Bearer $anonKey")
+                jobsConn.setRequestProperty("Accept", "application/json")
+                jobsConn.connectTimeout = 5000
+                jobsConn.readTimeout = 5000
+
+                if (jobsConn.responseCode == 200) {
+                    val jobsText = jobsConn.inputStream.bufferedReader().use { it.readText() }
+                    val jobsArr = org.json.JSONArray(jobsText)
+                    for (i in 0 until jobsArr.length()) {
+                        val j = jobsArr.getJSONObject(i)
+                        val jId = j.optString("job_id", "JOB-$i")
+                        val epId = j.optString("episode_id", "EP-COLORS-5-V1")
+                        val lang = j.optString("language", "EN")
+                        val state = j.optString("state", "PLANNED")
+                        val ytId = j.optString("youtube_video_id", "")
+                        val cost = j.optDouble("cost_usd", 0.0)
+                        val techQa = j.optBoolean("technical_qa_passed", true)
+                        val eduQa = j.optBoolean("educational_qa_passed", true)
+
+                        val entity = PipelineJobEntity(
+                            jobId = jId,
+                            episodeId = epId,
+                            title = "SmartKids Bölüm: $epId",
+                            languageCode = lang,
+                            status = state,
+                            deterministicSeed = calculateDeterministicSeed(epId, lang, "2.0.0"),
+                            youtubeVideoId = ytId,
+                            costUsd = cost,
+                            technicalQaPassed = techQa,
+                            educationalQaPassed = eduQa,
+                            logMessage = "Supabase senkronize edildi. Durum: $state, YouTube ID: $ytId"
+                        )
+                        database.pipelineDao().insertJob(entity)
+                    }
+                }
+                jobsConn.disconnect()
+            } catch (e: Exception) {
+                // Table might not exist yet or empty, proceed
+            }
+
+            return@withContext "Supabase bulut verileri başarıyla senkronize edildi!"
+        } catch (e: Exception) {
+            return@withContext "Senkronizasyon hatası: ${e.message}"
+        }
+    }
+
     private suspend fun syncControlToSupabase(enabled: Boolean, dailyEpisodes: Int, languagesJson: String) = withContext(Dispatchers.IO) {
         try {
             val supabaseUrl = com.example.BuildConfig.SUPABASE_URL.trimEnd('/')

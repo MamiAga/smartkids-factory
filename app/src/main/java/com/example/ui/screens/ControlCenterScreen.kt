@@ -1,11 +1,22 @@
 package com.example.ui.screens
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,15 +29,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.local.AutomationControlEntity
 import com.example.data.local.PipelineJobEntity
 import com.example.data.local.SystemEventEntity
-import com.example.ui.components.AutomationDashboardCard
+import com.example.data.remote.FullDiagnosticsResult
+import com.example.ui.components.*
+import com.example.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -40,11 +56,20 @@ fun ControlCenterScreen(
     onToggleLanguage: (String) -> Unit,
     onRunDiagnostics: (() -> Unit)? = null,
     isDiagnosing: Boolean = false,
-    diagnosticsResult: com.example.data.remote.FullDiagnosticsResult? = null
+    diagnosticsResult: FullDiagnosticsResult? = null,
+    onSyncCloud: (() -> Unit)? = null,
+    isSyncing: Boolean = false,
+    onQuickDispatch: ((String, String) -> Unit)? = null,
+    onStepJob: ((PipelineJobEntity) -> Unit)? = null
 ) {
+    val context = LocalContext.current
     val isEnabled = automationControl?.enabled ?: false
     val dailyEpisodes = automationControl?.dailyMasterEpisodes ?: 1
     val activeLangsJson = automationControl?.activeLanguagesJson ?: "[\"EN\"]"
+
+    var showQuickDispatchDialog by remember { mutableStateOf(false) }
+    var selectedDispatchLang by remember { mutableStateOf("EN") }
+    var selectedDispatchEpisode by remember { mutableStateOf("EP-COLORS-5-V1") }
 
     val activeLanguages = remember(activeLangsJson) {
         val list = mutableListOf<String>()
@@ -58,15 +83,15 @@ fun ControlCenterScreen(
 
     val expectedVideos = dailyEpisodes * activeLanguages.size
 
-    val producedCount = jobs.count { it.status == "PUBLISHED" || it.status == "COMPLETED" || it.status == "PROCESSED" }
-    val uploadingCount = jobs.count { it.status == "UPLOADING" || it.status == "UPLOADED" || it.status == "PROCESSING" }
-    val pendingCount = jobs.count { it.status == "PLANNED" || it.status == "SCRIPTED" || it.status == "TTS_READY" || it.status == "RENDERED" }
-    val failedCount = jobs.count { it.status == "QA_FAILED" || it.status == "QUARANTINED" }
+    val producedCount = jobs.count { it.status in listOf("PUBLISHED", "COMPLETED", "PROCESSED", "PROCESSED_PRIVATE") }
+    val uploadingCount = jobs.count { it.status in listOf("UPLOADING", "UPLOADED", "PROCESSING") }
+    val pendingCount = jobs.count { it.status in listOf("PLANNED", "SCRIPTED", "LOCALIZED", "TTS_READY", "RENDERED", "QA_PASSED") }
+    val failedCount = jobs.count { it.status in listOf("QA_FAILED", "QUARANTINED") }
 
-    val statusColor by animateColorAsState(
-        targetValue = if (isEnabled) Color(0xFF1B5E20) else Color(0xFFB71C1C),
-        label = "statusColor"
-    )
+    // En son veya aktif olan iş
+    val activeJob = jobs.firstOrNull {
+        it.status !in listOf("PUBLISHED", "COMPLETED", "PROCESSED", "PROCESSED_PRIVATE")
+    } ?: jobs.firstOrNull()
 
     LazyColumn(
         modifier = Modifier
@@ -75,11 +100,90 @@ fun ControlCenterScreen(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // 1. HERO MASTER CONTROL CARD (Supabase automation_control connected component)
+        // 1. QUICK ACTION COMMAND DECK (Mobil Hızlı Aksiyon Çubuğu)
         item {
-            val activeJob = jobs.firstOrNull { 
-                it.status != "PUBLISHED" && it.status != "COMPLETED" && it.status != "PROCESSED"
-            } ?: jobs.firstOrNull()
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .graphicsLayer { },
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "HIZLI BULUT KUMANDASI",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.primary,
+                            letterSpacing = 0.5.sp
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isEnabled) EmeraldPass else CrimsonBlock)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (isEnabled) "CANLI ÇALIŞIYOR" else "BEKLEMEDE",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isEnabled) EmeraldPass else CrimsonBlock
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // 1. Yeni Üretim Tetikle
+                        FilledTonalButton(
+                            onClick = { showQuickDispatchDialog = true },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp)
+                        ) {
+                            Icon(Icons.Default.RocketLaunch, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Üretim Başlat", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        // 2. Supabase Senkronize Et
+                        if (onSyncCloud != null) {
+                            Button(
+                                onClick = onSyncCloud,
+                                enabled = !isSyncing,
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = IndigoPrimary),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp)
+                            ) {
+                                if (isSyncing) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = Color.White)
+                                } else {
+                                    Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(16.dp))
+                                }
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(if (isSyncing) "Çekiliyor..." else "Bulut Senk.", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. HERO MASTER AUTOMATION DASHBOARD CARD (60-Adım İlerleme ve Ana Şalter)
+        item {
             AutomationDashboardCard(
                 automationControl = automationControl,
                 activeJob = activeJob,
@@ -90,11 +194,192 @@ fun ControlCenterScreen(
             )
         }
 
-        // 2. DAILY TARGET & CALCULATION CARD
+        // 3. CANLI İŞ & YOUTUBE YAYIN TAKİP PANELİ
+        if (activeJob != null) {
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .graphicsLayer { }
+                        .testTag("active_job_cockpit_card"),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(modifier = Modifier.padding(18.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer
+                                ) {
+                                    Text(
+                                        text = activeJob.languageCode,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Black,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = activeJob.episodeId,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            StatusBadge(
+                                text = activeJob.status,
+                                isSuccess = activeJob.status in listOf("PUBLISHED", "PROCESSED", "PROCESSED_PRIVATE", "COMPLETED"),
+                                isWarning = activeJob.status in listOf("RENDERED", "UPLOADING", "UPLOADED", "PROCESSING")
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Text(
+                            text = activeJob.title,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // YouTube Video ID Row
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                                    .clickable {
+                                        if (activeJob.youtubeVideoId.isNotBlank()) {
+                                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                            clipboard.setPrimaryClip(ClipData.newPlainText("YouTube ID", activeJob.youtubeVideoId))
+                                        }
+                                    },
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.PlayCircle,
+                                        contentDescription = null,
+                                        tint = Color(0xFFFF0000),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = if (activeJob.youtubeVideoId.isNotBlank()) "YouTube Video ID: ${activeJob.youtubeVideoId}" else "YouTube Video ID: Bekleniyor...",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                if (activeJob.youtubeVideoId.isNotBlank()) {
+                                    Icon(
+                                        imageVector = Icons.Default.ContentCopy,
+                                        contentDescription = "Kopyala",
+                                        tint = MaterialTheme.colorScheme.outline,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Teknik Özellikler Satırı
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "1080p60 H.264 • -16 LUFS AAC",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                            Text(
+                                text = "Maliyet: 0.00 USD (0 TL)",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = EmeraldPass
+                            )
+                        }
+
+                        if (onStepJob != null) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            OutlinedButton(
+                                onClick = { onStepJob(activeJob) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(Icons.Default.FastForward, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Aşamayı İlerlet (${activeJob.status})", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4. TODAY'S PRODUCTION KPI METRICS GRID
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "GÜNLÜK ÜRETİM & KUYRUK DURUMU",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    MetricBox(
+                        title = "Tamamlanan",
+                        count = producedCount,
+                        color = Color(0xFF2E7D32),
+                        modifier = Modifier.weight(1f)
+                    )
+                    MetricBox(
+                        title = "Yükleniyor",
+                        count = uploadingCount,
+                        color = Color(0xFF1565C0),
+                        modifier = Modifier.weight(1f)
+                    )
+                    MetricBox(
+                        title = "Bekleyen",
+                        count = pendingCount,
+                        color = Color(0xFFF57F17),
+                        modifier = Modifier.weight(1f)
+                    )
+                    MetricBox(
+                        title = "Karantina",
+                        count = failedCount,
+                        color = Color(0xFFC62828),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+
+        // 5. DAILY TARGET & MULTI-LANGUAGE CAPACITY CALCULATOR
         item {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .graphicsLayer { }
                     .testTag("target_calculation_card"),
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -117,7 +402,7 @@ fun ControlCenterScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -133,7 +418,7 @@ fun ControlCenterScreen(
                             Text(
                                 text = "$dailyEpisodes Bölüm / Gün",
                                 style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Black
                             )
                         }
 
@@ -192,53 +477,12 @@ fun ControlCenterScreen(
             }
         }
 
-        // 3. TODAY'S PRODUCTION METRICS GRID
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = "BUGÜNKÜ DURUM & KUYRUK",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    MetricBox(
-                        title = "Tamamlanan",
-                        count = producedCount,
-                        color = Color(0xFF2E7D32),
-                        modifier = Modifier.weight(1f)
-                    )
-                    MetricBox(
-                        title = "Yükleniyor",
-                        count = uploadingCount,
-                        color = Color(0xFF1565C0),
-                        modifier = Modifier.weight(1f)
-                    )
-                    MetricBox(
-                        title = "Bekleyen",
-                        count = pendingCount,
-                        color = Color(0xFFF57F17),
-                        modifier = Modifier.weight(1f)
-                    )
-                    MetricBox(
-                        title = "Hatalı/Karantina",
-                        count = failedCount,
-                        color = Color(0xFFC62828),
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        }
-
-        // 4. LANGUAGE MATRIX SELECTION
+        // 6. LANGUAGE MATRIX SELECTION (EN, ES, DE, FR, PT)
         item {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .graphicsLayer { }
                     .testTag("language_matrix_card"),
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -294,11 +538,12 @@ fun ControlCenterScreen(
             }
         }
 
-        // 5. CLOUD INFRASTRUCTURE & HEARTBEAT STATUS
+        // 7. CLOUD INFRASTRUCTURE & HEARTBEAT STATUS
         item {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .graphicsLayer { }
                     .testTag("cloud_infra_card"),
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -345,7 +590,7 @@ fun ControlCenterScreen(
             }
         }
 
-        // 6. OPERATIONAL SYSTEM LOGS
+        // 8. OPERATIONAL SYSTEM LOGS
         item {
             Text(
                 text = "SON SİSTEM VE HEARTBEAT GÜNLÜĞÜ",
@@ -368,7 +613,10 @@ fun ControlCenterScreen(
                 Surface(
                     shape = RoundedCornerShape(12.dp),
                     color = MaterialTheme.colorScheme.surface,
-                    modifier = Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .graphicsLayer { }
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Row(
@@ -398,6 +646,52 @@ fun ControlCenterScreen(
             }
         }
     }
+
+    // Quick Dispatch Dialog
+    if (showQuickDispatchDialog) {
+        AlertDialog(
+            onDismissRequest = { showQuickDispatchDialog = false },
+            icon = { Icon(Icons.Default.RocketLaunch, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("Bulut Üretimini Tetikle") },
+            text = {
+                Column {
+                    Text("Bölüm DNA: EP-COLORS-5-V1 (Renkleri Öğrenelim)", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text("Hedef Dil Seçin:", fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf("EN", "ES", "DE", "FR", "PT").forEach { lang ->
+                            FilterChip(
+                                selected = selectedDispatchLang == lang,
+                                onClick = { selectedDispatchLang = lang },
+                                label = { Text(lang, fontSize = 12.sp) }
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Privacy: PRIVATE • Made For Kids: TRUE • 0 TL Maliyet", fontSize = 11.sp, color = EmeraldPass, fontWeight = FontWeight.Bold)
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onQuickDispatch?.invoke(selectedDispatchEpisode, selectedDispatchLang)
+                        showQuickDispatchDialog = false
+                    }
+                ) {
+                    Text("Üretimi Başlat")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showQuickDispatchDialog = false }) {
+                    Text("Vazgeç")
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -408,7 +702,7 @@ fun MetricBox(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        modifier = modifier,
+        modifier = modifier.graphicsLayer { },
         shape = RoundedCornerShape(14.dp),
         color = MaterialTheme.colorScheme.surfaceVariant
     ) {

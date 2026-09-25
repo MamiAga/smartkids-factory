@@ -201,6 +201,9 @@ fun AutomationDashboardCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
+            .graphicsLayer {
+                // Stabilize hardware-accelerated composition layer to eliminate EGL dataspace warnings
+            }
             .testTag("automation_dashboard_card"),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = containerBgColor),

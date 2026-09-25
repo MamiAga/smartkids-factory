@@ -25,41 +25,63 @@ import com.example.ui.theme.*
 @Composable
 fun AppTopBar(
     unapprovedCount: Int,
-    onSearchClick: (() -> Unit)? = null
+    onSyncClick: (() -> Unit)? = null,
+    onDiagnosticsClick: (() -> Unit)? = null,
+    isSyncing: Boolean = false
 ) {
     TopAppBar(
         title = {
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "SmartKids Network",
-                        fontWeight = FontWeight.Bold,
+                        text = "SmartKids Kumanda",
+                        fontWeight = FontWeight.Black,
                         fontSize = 18.sp,
                         color = MaterialTheme.colorScheme.onBackground
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Surface(
-                        shape = RoundedCornerShape(4.dp),
+                        shape = RoundedCornerShape(6.dp),
                         color = EmeraldPass.copy(alpha = 0.2f),
                         border = androidx.compose.foundation.BorderStroke(1.dp, EmeraldPass)
                     ) {
                         Text(
                             text = "0 TL KİLİT",
                             fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.ExtraBold,
                             color = EmeraldPass,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
                 }
                 Text(
-                    text = "Oracle ARM 2 OCPU • 12GB RAM • Ücretsiz Katman",
+                    text = "GitHub Actions ARM64 (aarch64) • Supabase • YouTube Private",
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         },
         actions = {
+            if (onSyncClick != null) {
+                IconButton(
+                    onClick = onSyncClick,
+                    enabled = !isSyncing
+                ) {
+                    if (isSyncing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Sync,
+                            contentDescription = "Bulut Senkronize Et",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
             if (unapprovedCount > 0) {
                 Surface(
                     shape = RoundedCornerShape(12.dp),

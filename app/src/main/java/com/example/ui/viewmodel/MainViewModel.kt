@@ -83,6 +83,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isDiagnosing = MutableStateFlow(false)
     val isDiagnosing: StateFlow<Boolean> = _isDiagnosing.asStateFlow()
 
+    private val _isSyncing = MutableStateFlow(false)
+    val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
+
+    fun syncFromSupabase() {
+        if (_isSyncing.value) return
+        viewModelScope.launch {
+            _isSyncing.value = true
+            _notification.value = UiNotification("Supabase ile canlı veriler senkronize ediliyor...")
+            val result = repository.syncFromSupabaseCloud()
+            _isSyncing.value = false
+            _notification.value = UiNotification(result)
+        }
+    }
+
     fun runConnectivityDiagnostics() {
         if (_isDiagnosing.value) return
         viewModelScope.launch {

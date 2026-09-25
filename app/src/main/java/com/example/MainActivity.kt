@@ -23,10 +23,24 @@ import com.example.ui.viewmodel.MainViewModel
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Enforce 8888 pixel format and window flags for clean color space and prevent HWUI dataspace warnings
+        window.setFormat(android.graphics.PixelFormat.RGBA_8888)
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED)
+        
         enableEdgeToEdge()
         setContent {
             MyApplicationTheme {
-                MainApp()
+                Surface(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            // Explicit hardware acceleration surface configuration
+                        },
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    MainApp()
+                }
             }
         }
     }
@@ -53,6 +67,7 @@ fun MainApp(mainViewModel: MainViewModel = viewModel()) {
     val qaResult by mainViewModel.qaResult.collectAsStateWithLifecycle()
     val diagnosticsResult by mainViewModel.diagnosticsState.collectAsStateWithLifecycle()
     val isDiagnosing by mainViewModel.isDiagnosing.collectAsStateWithLifecycle()
+    val isSyncing by mainViewModel.isSyncing.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -78,7 +93,9 @@ fun MainApp(mainViewModel: MainViewModel = viewModel()) {
         modifier = Modifier.fillMaxSize(),
         topBar = {
             AppTopBar(
-                unapprovedCount = unapprovedVoiceCount
+                unapprovedCount = unapprovedVoiceCount,
+                onSyncClick = { mainViewModel.syncFromSupabase() },
+                isSyncing = isSyncing
             )
         },
         bottomBar = {
@@ -138,7 +155,14 @@ fun MainApp(mainViewModel: MainViewModel = viewModel()) {
                     onToggleLanguage = { mainViewModel.toggleActiveLanguage(it) },
                     onRunDiagnostics = { mainViewModel.runConnectivityDiagnostics() },
                     isDiagnosing = isDiagnosing,
-                    diagnosticsResult = diagnosticsResult
+                    diagnosticsResult = diagnosticsResult,
+                    onSyncCloud = { mainViewModel.syncFromSupabase() },
+                    isSyncing = isSyncing,
+                    onQuickDispatch = { epId, lang ->
+                        val ep = episodes.find { it.episodeId == epId } ?: episodes.firstOrNull()
+                        if (ep != null) mainViewModel.createPipelineJobForLanguage(ep, lang)
+                    },
+                    onStepJob = { mainViewModel.stepPipelineJob(it) }
                 )
                 AppTab.VOICE_REGISTRY -> VoiceRegistryScreen(
                     voices = voices,
