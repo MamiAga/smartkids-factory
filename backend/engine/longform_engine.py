@@ -117,13 +117,15 @@ def mix_audio(segs, total: float, scratch: str, out_wav: str, seed: int) -> Dict
     sf.write(raw, mix, SR, subtype="PCM_16")
     # 2-pass EBU R128 -> -16 LUFS / -1.5 dBTP
     import json
-    p1 = subprocess.run(["ffmpeg", "-hide_banner", "-i", raw, "-af", "loudnorm=I=-16:TP=-1.5:LRA=11:print_format=json",
+    p1 = subprocess.run(["ffmpeg", "-hide_banner", "-i", raw, "-af", "loudnorm=I=-16:TP=-2:LRA=11:print_format=json",
                          "-f", "null", "-"], stdout=subprocess.PIPE, stderr=subprocess.PIPE).stderr.decode()
     st = json.loads(p1[p1.rfind("{"):p1.rfind("}") + 1])
     _run(["ffmpeg", "-y", "-loglevel", "error", "-i", raw, "-af",
-          "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true:"
+          "loudnorm=I=-16:TP=-2:LRA=11:linear=true:"
           f"measured_I={st['input_i']}:measured_TP={st['input_tp']}:measured_LRA={st['input_lra']}:"
-          f"measured_thresh={st['input_thresh']}:offset={st['target_offset']},aresample=48000",
+          f"measured_thresh={st['input_thresh']}:offset={st['target_offset']},"
+          # brick-wall safety limiter at -3 dBFS: AAC encoding can add ~1-2 dB of inter-sample peaks
+          "alimiter=limit=0.708:attack=5:release=50:level=false,aresample=48000",
           "-c:a", "pcm_s16le", "-ar", "48000", "-ac", "2", out_wav])
     speech_sec = sum(s.get("speech_sec", 0) for s in segs)
     words = sum(s.get("words", 0) for s in segs)
