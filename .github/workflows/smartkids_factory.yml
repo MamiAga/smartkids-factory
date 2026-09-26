@@ -100,6 +100,13 @@ jobs:
       - name: Download Kokoro narrator model
         run: python3 backend/tools/download_models.py --kokoro
 
+      - name: Restore narration cache (identical lines are not re-synthesised)
+        uses: actions/cache/restore@v4
+        with:
+          path: backend/models/tts_cache
+          key: tts-${{ github.run_id }}
+          restore-keys: tts-
+
       - name: Run factory cycle
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -119,6 +126,13 @@ jobs:
           [ "${{ inputs.run_now }}" = "true" ] && FLAGS="$FLAGS --run-now"
           [ "${{ inputs.force_run }}" = "true" ] && FLAGS="$FLAGS --force"
           python3 backend/engine/factory_orchestrator.py $FLAGS
+
+      - name: Save narration cache (also after a failed run)
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: backend/models/tts_cache
+          key: tts-${{ github.run_id }}
 
       - name: Upload run audit
         if: always()

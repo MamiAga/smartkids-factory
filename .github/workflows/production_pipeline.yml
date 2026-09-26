@@ -78,6 +78,13 @@ jobs:
       - name: Download Kokoro narrator model
         run: python3 backend/tools/download_models.py --kokoro
 
+      - name: Restore narration cache (identical lines are not re-synthesised)
+        uses: actions/cache/restore@v4
+        with:
+          path: backend/models/tts_cache
+          key: tts-${{ github.run_id }}
+          restore-keys: tts-
+
       - name: Run production job
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -113,6 +120,13 @@ jobs:
           for k in ("job_id", "state", "youtube_video_id", "processing_status", "youtube_privacy_status", "updated_at"):
               print(f"  {k}: {rec.get(k)}")
           EOF
+
+      - name: Save narration cache (also after a failed run)
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: backend/models/tts_cache
+          key: tts-${{ github.run_id }}
 
       - name: Upload artifacts
         if: always()
