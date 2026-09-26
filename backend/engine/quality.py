@@ -28,7 +28,7 @@ RULES = {
     "min_interjection_ratio": 0.8,                         # acting rule: >= 80 % of lines start with Wow/Oh/Yay...
     "min_tagged_ratio": 0.95,                              # every line carries an emotion tag
     "min_whisper_lines": 5,                                # dynamic range: not only shouting
-    "approved_voices": ["af_heart", "ef_dora", "ff_siwis", "pf_dora", "chatterbox_female_bella", "chatterbox_male_puck"],
+    "approved_voices": ["af_heart", "ef_dora", "ff_siwis", "pf_dora", "chatterbox_female_nicole", "chatterbox_male_puck"],
     "title_max": 100, "description_min": 400,
 }
 

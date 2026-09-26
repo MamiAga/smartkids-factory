@@ -39,15 +39,15 @@ SR = 24000
 
 # Engine selection. "chatterbox" = Resemble AI Chatterbox (MIT) with an emotion-exaggeration control,
 # much more theatrical than Kokoro but heavier (PyTorch). Chosen per run via SMARTKIDS_TTS_ENGINE.
-ENGINE = os.getenv("SMARTKIDS_TTS_ENGINE", "kokoro")
+ENGINE = os.getenv("SMARTKIDS_TTS_ENGINE") or "chatterbox"
 _cb = None  # persistent worker process (separate venv, see backend/tools/chatterbox_worker.py)
 _cb_ref = None
 
 # Narrators for Chatterbox. Timbre comes from a reference clip that WE generate with Kokoro (Apache-2.0),
 # so there is no third-party voice / likeness right involved. Chatterbox adds the acting on top.
 NARRATORS = {
-    "female": {"kokoro_voice": "af_bella", "id": "chatterbox_female_bella"},
-    "male": {"kokoro_voice": "am_puck", "id": "chatterbox_male_puck"},
+    "female": {"kokoro_voice": "af_nicole", "id": "chatterbox_female_nicole"},   # audition F2 (chosen)
+    "male": {"kokoro_voice": "am_puck", "id": "chatterbox_male_puck"},          # audition M1 (chosen)
     "default": {"kokoro_voice": None, "id": "chatterbox_default"},   # Chatterbox built-in voice (audition "E")
 }
 NARRATOR = os.getenv("SMARTKIDS_NARRATOR", "female")
