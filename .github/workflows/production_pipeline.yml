@@ -22,8 +22,8 @@ on:
       tts_engine:
         description: 'Narrator engine'
         type: choice
-        options: [kokoro, chatterbox]
-        default: kokoro
+        options: [chatterbox, kokoro]
+        default: chatterbox
       publish:
         description: 'Privacy after processing + SKQS-3 gate'
         type: choice
@@ -38,7 +38,7 @@ jobs:
   produce_and_verify:
     runs-on: ubuntu-24.04-arm
     name: Production Pipeline Runner (ubuntu-24.04-arm)
-    timeout-minutes: 120
+    timeout-minutes: 330
     env:
       ALLOW_PAID_SERVICES: 'false'
     steps:
