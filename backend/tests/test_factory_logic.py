@@ -8,7 +8,7 @@ import unittest
 from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from backend.engine.curriculum import CATALOG, youtube_metadata  # noqa: E402
+from backend.engine.longform import PACKS as CATALOG, build_timeline, youtube_metadata as lf_meta  # noqa: E402
 from backend.engine.factory_orchestrator import plan_cycle, pick_next_episode  # noqa: E402
 from backend.engine.production_runner import ProductionEngine, make_job_id  # noqa: E402
 
@@ -62,36 +62,39 @@ class PlanCycleTests(unittest.TestCase):
 
 class EpisodeSelectionTests(unittest.TestCase):
     def test_existing_video_is_never_picked_again(self):
-        self.assertEqual(pick_next_episode("EN", []), "EP-COLORS-5-V1")
-        jobs = [{"episode_id": "EP-COLORS-5-V1", "state": "PROCESSED_PRIVATE"}]
+        self.assertEqual(pick_next_episode("EN", []), "EP-COLORS-MEGA-V1")
+        jobs = [{"episode_id": "EP-COLORS-MEGA-V1", "state": "PROCESSED_PRIVATE"}]
         self.assertEqual(pick_next_episode("EN", jobs), CATALOG[1]["episode_id"])
 
     def test_failed_upload_is_retried(self):
-        jobs = [{"episode_id": "EP-COLORS-5-V1", "state": "FAILED_UPLOAD"}]
-        self.assertEqual(pick_next_episode("EN", jobs), "EP-COLORS-5-V1")
+        jobs = [{"episode_id": "EP-COLORS-MEGA-V1", "state": "FAILED_UPLOAD"}]
+        self.assertEqual(pick_next_episode("EN", jobs), "EP-COLORS-MEGA-V1")
 
     def test_exhausted(self):
         jobs = [{"episode_id": e["episode_id"], "state": "COMPLETED"} for e in CATALOG]
         self.assertIsNone(pick_next_episode("EN", jobs))
 
     def test_new_template_does_not_reuse_v0_job_id(self):
-        # v0.1 video (JOB-EN-eea4cd1f) predates SKQS-1 and must never be auto-published
-        self.assertNotEqual(make_job_id("EP-COLORS-5-V1", "EN")[0], "JOB-EN-eea4cd1f")
+        # v0.1 video (JOB-EN-eea4cd1f) predates the quality standard and must never be auto-published
+        self.assertNotEqual(make_job_id("EP-COLORS-MEGA-V1", "EN")[0], "JOB-EN-eea4cd1f")
 
 
 class CurriculumQaTests(unittest.TestCase):
-    def test_every_episode_passes_pedagogical_gate(self):
+    def test_every_pack_passes_script_gate(self):
         for ep in CATALOG:
             with self.subTest(ep=ep["episode_id"]):
                 self.assertTrue(ProductionEngine.run_linguistic_and_pedagogical_qa("EN", ep)["passed"])
 
-    def test_unique_ids_and_metadata_limits(self):
-        ids = [e["episode_id"] for e in CATALOG]
-        self.assertEqual(len(ids), len(set(ids)))
+    def test_every_item_has_countdown_and_quiz(self):
         for ep in CATALOG:
-            m = youtube_metadata(ep, "EN")
+            segs = build_timeline(ep)
+            self.assertGreaterEqual(sum(1 for s in segs if s["kind"] == "countdown"), 2 * len(ep["items"]))
+
+    def test_metadata(self):
+        for ep in CATALOG:
+            m = lf_meta(ep, [{"t": 0, "title": "Hello"}, {"t": 30, "title": "Red"}])
             self.assertLessEqual(len(m["title"]), 100)
-            self.assertLessEqual(len(m["description"]), 5000)
+            self.assertIn("0:00", m["description"])
             self.assertLess(sum(len(t) for t in m["tags"]), 450)
 
 
@@ -117,10 +120,10 @@ class FakeDB:
 
 class IdempotencyTests(unittest.TestCase):
     def test_already_uploaded_job_is_not_uploaded_again(self):
-        db = FakeDB({"job_id": make_job_id("EP-COLORS-5-V1", "EN")[0], "state": "PROCESSED_PRIVATE",
+        db = FakeDB({"job_id": make_job_id("EP-COLORS-MEGA-V1", "EN")[0], "state": "PROCESSED_PRIVATE",
                      "youtube_video_id": "3JTsS1ZW_zw"})
         eng = ProductionEngine(db=db)
-        r = eng.run_production("EP-COLORS-5-V1", "EN")
+        r = eng.run_production("EP-COLORS-MEGA-V1", "EN")
         self.assertEqual(r["status"], "SKIPPED_DUPLICATE")
         self.assertEqual(r["youtube_video_id"], "3JTsS1ZW_zw")
         self.assertEqual(db.upserts, [])
@@ -128,7 +131,7 @@ class IdempotencyTests(unittest.TestCase):
     def test_unlocalized_language_is_isolated_not_crashing(self):
         from backend.engine.production_runner import LanguageNotReady
         with self.assertRaises(LanguageNotReady):
-            ProductionEngine(db=FakeDB()).run_production("EP-COLORS-5-V1", "ES")
+            ProductionEngine(db=FakeDB()).run_production("EP-COLORS-MEGA-V1", "ES")
 
 
 if __name__ == "__main__":
@@ -138,23 +141,32 @@ if __name__ == "__main__":
 class QualityStandardTests(unittest.TestCase):
     GOOD = {"width": 1920, "height": 1080, "fps": 60.0, "video_codec": "h264", "video_profile": "High",
             "pix_fmt": "yuv420p", "audio_codec": "aac", "audio_rate": 48000, "audio_channels": 2,
-            "duration": 50.0, "loudness_lufs": -16.2, "true_peak_dbtp": -2.0, "silences": [2.0],
-            "black_segments": [], "max_luma_step": 6.0}
-    DESIGN = {"scenes": 5, "text_checks": [{"text": "RED", "px": 170, "contrast": 4.7}],
-              "pictures": [True] * 5, "character_every_scene": True, "pause_sec": 2.5}
+            "duration": 560.0, "loudness_lufs": -16.2, "true_peak_dbtp": -2.0, "silences": [],
+            "black_segments": [], "max_luma_step": 6.0, "max_flashes_per_sec": 1}
+    DESIGN = {"items": 8, "text_checks": [{"text": "RED", "px": 170, "contrast": 4.7}], "pictures": [True] * 5,
+              "character_every_scene": True, "decorations": True, "music_bed": True, "countdowns": 24,
+              "wpm": 128, "voice": "af_heart"}
 
     def meta(self):
-        return youtube_metadata(CATALOG[0], "EN")
+        m = lf_meta(CATALOG[0], [{"t": 0, "title": "Hello"}])
+        m["made_for_kids"] = True
+        return m
 
     def test_good_video_passes(self):
         from backend.engine.quality import evaluate
-        self.assertTrue(evaluate(self.GOOD, self.DESIGN, self.meta())["passed"])
+        r = evaluate(self.GOOD, self.DESIGN, self.meta())
+        self.assertTrue(r["passed"], r["failures"])
 
     def test_below_standard_is_rejected(self):
         from backend.engine.quality import evaluate
-        for bad in ({"loudness_lufs": -23.0}, {"fps": 30.0}, {"max_luma_step": 40.0}, {"silences": [7.0]},
-                    {"true_peak_dbtp": 0.2}, {"duration": 30.0}):
+        for bad in ({"loudness_lufs": -23.0}, {"fps": 30.0}, {"max_flashes_per_sec": 5}, {"silences": [1.4]},
+                    {"true_peak_dbtp": 0.2}, {"duration": 300.0}, {"duration": 700.0}):
             with self.subTest(bad=bad):
                 self.assertFalse(evaluate(dict(self.GOOD, **bad), self.DESIGN, self.meta())["passed"])
-        low = dict(self.DESIGN, text_checks=[{"text": "X", "px": 40, "contrast": 3.0}])
-        self.assertFalse(evaluate(self.GOOD, low, self.meta())["passed"])
+        for bad in ({"wpm": 175}, {"voice": "piper_robot"}, {"music_bed": False}, {"countdowns": 2},
+                    {"text_checks": [{"text": "X", "px": 40, "contrast": 3.0}]}):
+            with self.subTest(bad=bad):
+                self.assertFalse(evaluate(self.GOOD, dict(self.DESIGN, **bad), self.meta())["passed"])
+        m = self.meta()
+        m["made_for_kids"] = False
+        self.assertFalse(evaluate(self.GOOD, self.DESIGN, m)["passed"])
