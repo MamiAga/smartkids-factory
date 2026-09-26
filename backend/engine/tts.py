@@ -96,6 +96,7 @@ def _cb_worker():
     return _cb
 
 
+FALLBACKS = []  # lines that had no clean Chatterbox take and were read by Kokoro
 CB_LOG = []  # per-line take statistics (distortion guard), exported into the quality report
 
 
@@ -113,7 +114,9 @@ def _synth_chatterbox(text: str, out_wav: str) -> float:
             r = json.loads(line)
             if not r.get("ok"):
                 if "DISTORTION_GUARD" in r.get("error", ""):
-                    raise QualityGateError(r["error"])  # never publish a garbled line
+                    # never publish a garbled line: this one line is read by the clean Kokoro voice instead
+                    FALLBACKS.append(text[:80])
+                    return _synth_kokoro(text, "EN", out_wav)
                 raise RuntimeError(f"chatterbox: {r.get('error')}")
             CB_LOG.append({"text": text[:60], "attempts": r.get("attempts", [])})
             return float(r["dur"])
@@ -141,8 +144,23 @@ def synth(text: str, language: str, out_wav: str, speed: Optional[float] = None)
         samples = 0.05 * np.sin(2 * np.pi * 220 * np.arange(int(dur * SR)) / SR)
         sf.write(out_wav, samples.astype(np.float32), SR)
         return dur
-    if ENGINE == "chatterbox":
-        return _synth_chatterbox(text, out_wav)
+    # cross-run cache: identical line + voice + engine -> reuse (reruns take minutes, not hours)
+    import hashlib
+    import shutil
+    cache_dir = os.getenv("SMARTKIDS_TTS_CACHE", os.path.join(MODEL_DIR, "tts_cache"))
+    os.makedirs(cache_dir, exist_ok=True)
+    key = hashlib.sha1(f"v2|{ENGINE}|{voice_id()}|{os.getenv('CB_EXAG_EXCITED', '')}|{language}|{text}".encode()).hexdigest()
+    cached = os.path.join(cache_dir, key + ".wav")
+    if os.path.exists(cached):
+        shutil.copy(cached, out_wav)
+        return sf.info(out_wav).duration
+    dur = _synth_chatterbox(text, out_wav) if ENGINE == "chatterbox" else _synth_kokoro(text, language, out_wav, speed)
+    shutil.copy(out_wav, cached)
+    return dur
+
+
+def _synth_kokoro(text: str, language: str, out_wav: str, speed: Optional[float] = None) -> float:
+    cfg = VOICES[language]
     import re
     chunks = []
     sr = SR

@@ -418,7 +418,8 @@ class ProductionEngine:
                   "countdowns": rv["countdowns"], "wpm": audio["wpm"], "words": audio["words"],
                   "voice": tts.voice_id(), "segments": len(segs),
                   "narrator": tts.NARRATOR if tts.ENGINE == "chatterbox" else "female",
-                  "retakes": sum(max(0, len(x["attempts"]) - 1) for x in tts.CB_LOG)}
+                  "retakes": sum(max(0, len(x["attempts"]) - 1) for x in tts.CB_LOG),
+                  "voice_fallbacks": len(tts.FALLBACKS)}
         logger.info("[Long-form] %s: %.1fs, %d words @ %.0f wpm", mp4, total, audio["words"], audio["wpm"])
         return {"mp4": mp4, "thumbnail": thumb, "design": design, "meta": meta}
 

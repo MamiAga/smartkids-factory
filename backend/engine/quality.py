@@ -131,6 +131,7 @@ def evaluate(m: Dict[str, Any], design: Dict[str, Any], meta: Dict[str, Any]) ->
     need(design.get("tagged_ratio", 0) >= R["min_tagged_ratio"], f"untagged lines: {design.get('tagged_ratio')}")
     need(design.get("whisper_lines", 0) >= R["min_whisper_lines"], "no whisper contrast")
     need(design.get("countdown_sfx") is True, "countdown without tick-tock/reveal effects")
+    need(design.get("voice_fallbacks", 0) <= 8, f"{design.get('voice_fallbacks')} lines fell back to the plain voice")
 
     # metadata
     need(0 < len(meta.get("title", "")) <= R["title_max"], "title length")
