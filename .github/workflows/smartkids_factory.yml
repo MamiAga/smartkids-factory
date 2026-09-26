@@ -103,7 +103,7 @@ jobs:
       - name: Restore narration cache (identical lines are not re-synthesised)
         uses: actions/cache/restore@v4
         with:
-          path: backend/models/tts_cache
+          path: backend/models/kokoro/tts_cache
           key: tts-${{ github.run_id }}
           restore-keys: tts-
 
@@ -131,7 +131,7 @@ jobs:
         if: always()
         uses: actions/cache/save@v4
         with:
-          path: backend/models/tts_cache
+          path: backend/models/kokoro/tts_cache
           key: tts-${{ github.run_id }}
 
       - name: Upload run audit
