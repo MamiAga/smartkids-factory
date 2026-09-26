@@ -56,12 +56,30 @@ def download_voice(lang: str):
     urllib.request.urlretrieve(info["url"], target)
     logger.info("Downloaded %s successfully (%d bytes)", info["onnx"], os.path.getsize(target))
 
+def download_kokoro():
+    """Kokoro-82M (Apache-2.0) narrator model, ~350 MB, from the kokoro-onnx GitHub release."""
+    sys.path.insert(0, os.path.abspath(os.path.join(BASE_DIR, "..")))
+    from backend.engine.tts import MODEL_DIR, MODEL_URLS
+    os.makedirs(MODEL_DIR, exist_ok=True)
+    for name, url in MODEL_URLS.items():
+        target = os.path.join(MODEL_DIR, name)
+        if os.path.exists(target) and os.path.getsize(target) > 1_000_000:
+            logger.info("Kokoro %s already present", name)
+            continue
+        logger.info("Downloading %s ...", url)
+        urllib.request.urlretrieve(url, target)
+        logger.info("Downloaded %s (%d bytes)", name, os.path.getsize(target))
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--languages", nargs="+", default=["EN"])
+    parser.add_argument("--languages", nargs="+", default=[])
+    parser.add_argument("--kokoro", action="store_true", help="download the Kokoro narrator model")
     args = parser.parse_args()
     for lang in args.languages:
         download_voice(lang)
+    if args.kokoro:
+        download_kokoro()
 
 if __name__ == "__main__":
     main()
