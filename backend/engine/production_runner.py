@@ -388,6 +388,10 @@ class ProductionEngine:
         return final
 
     def produce_longform(self, pack: Dict[str, Any], language: str, job_id: str, seed_int: int) -> Dict[str, Any]:
+        # narrator alternates per episode (female / male) unless SMARTKIDS_NARRATOR forces one
+        forced = os.getenv("SMARTKIDS_NARRATOR_MODE", "alternate")
+        order = [p["episode_id"] for p in PACKS_BY_ID.values()].index(pack["episode_id"])
+        tts.set_narrator(forced if forced in tts.NARRATORS else ("female" if order % 2 == 0 else "male"))
         segs = build_timeline(pack, seed=seed_int)
         total = longform_engine.plan_audio(pack, segs, language, SCRATCH_DIR, job_id, seed_int)
         audio = longform_engine.mix_audio(segs, total, SCRATCH_DIR, os.path.join(OUTPUT_DIR, f"{job_id}_master.wav"),
@@ -412,7 +416,9 @@ class ProductionEngine:
         design = {**acting, "items": len(pack["items"]), "text_checks": rv["text_checks"], "pictures": rv["pictures"],
                   "character_every_scene": True, "decorations": rv["decorations"], "music_bed": audio["music_bed"],
                   "countdowns": rv["countdowns"], "wpm": audio["wpm"], "words": audio["words"],
-                  "voice": tts.voice_id(), "segments": len(segs)}
+                  "voice": tts.voice_id(), "segments": len(segs),
+                  "narrator": tts.NARRATOR if tts.ENGINE == "chatterbox" else "female",
+                  "retakes": sum(max(0, len(x["attempts"]) - 1) for x in tts.CB_LOG)}
         logger.info("[Long-form] %s: %.1fs, %d words @ %.0f wpm", mp4, total, audio["words"], audio["wpm"])
         return {"mp4": mp4, "thumbnail": thumb, "design": design, "meta": meta}
 

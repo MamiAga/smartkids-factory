@@ -41,10 +41,41 @@ SR = 24000
 # much more theatrical than Kokoro but heavier (PyTorch). Chosen per run via SMARTKIDS_TTS_ENGINE.
 ENGINE = os.getenv("SMARTKIDS_TTS_ENGINE", "kokoro")
 _cb = None  # persistent worker process (separate venv, see backend/tools/chatterbox_worker.py)
+_cb_ref = None
+
+# Narrators for Chatterbox. Timbre comes from a reference clip that WE generate with Kokoro (Apache-2.0),
+# so there is no third-party voice / likeness right involved. Chatterbox adds the acting on top.
+NARRATORS = {
+    "female": {"kokoro_voice": "af_bella", "id": "chatterbox_female_bella"},
+    "male": {"kokoro_voice": "am_puck", "id": "chatterbox_male_puck"},
+    "default": {"kokoro_voice": None, "id": "chatterbox_default"},   # Chatterbox built-in voice (audition "E")
+}
+NARRATOR = os.getenv("SMARTKIDS_NARRATOR", "female")
+REF_TEXT = ("Hello, my little friends! Wow, look at all these beautiful colors! Can you find the red one? "
+            "Yay, you did it! Now let's count together: one, two, three! Hooray, great job!")
 
 
 def voice_id() -> str:
-    return "chatterbox_default" if ENGINE == "chatterbox" else "af_heart"
+    return NARRATORS[NARRATOR]["id"] if ENGINE == "chatterbox" else "af_heart"
+
+
+def set_narrator(name: str) -> None:
+    global NARRATOR, _cb
+    if name != NARRATOR and _cb is not None:
+        _cb.kill()
+        _cb = None
+    NARRATOR = name
+
+
+def _reference_wav() -> str:
+    kv = NARRATORS[NARRATOR]["kokoro_voice"]
+    if not kv:
+        return ""
+    path = os.path.join(MODEL_DIR, f"ref_{NARRATOR}_{kv}.wav")
+    if not os.path.exists(path):
+        samples, sr = _load().create(REF_TEXT, voice=kv, speed=0.95, lang="en-us")
+        sf.write(path, samples, sr)
+    return path
 
 
 def _cb_worker():
@@ -54,7 +85,8 @@ def _cb_worker():
         import subprocess
         py = os.getenv("CHATTERBOX_PY", "python3")
         worker = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools", "chatterbox_worker.py")
-        _cb = subprocess.Popen([py, worker], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, bufsize=1)
+        env = dict(os.environ, CB_REF_WAV=_reference_wav())
+        _cb = subprocess.Popen([py, worker], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, bufsize=1, env=env)
         while True:  # skip library chatter until the worker says it is ready
             line = _cb.stdout.readline()
             if not line:
@@ -64,8 +96,12 @@ def _cb_worker():
     return _cb
 
 
+CB_LOG = []  # per-line take statistics (distortion guard), exported into the quality report
+
+
 def _synth_chatterbox(text: str, out_wav: str) -> float:
     import json
+    from backend.engine.quality import QualityGateError
     w = _cb_worker()
     w.stdin.write(json.dumps({"text": text, "out": os.path.abspath(out_wav)}) + "\n")
     w.stdin.flush()
@@ -76,7 +112,10 @@ def _synth_chatterbox(text: str, out_wav: str) -> float:
         if line.startswith("{"):
             r = json.loads(line)
             if not r.get("ok"):
+                if "DISTORTION_GUARD" in r.get("error", ""):
+                    raise QualityGateError(r["error"])  # never publish a garbled line
                 raise RuntimeError(f"chatterbox: {r.get('error')}")
+            CB_LOG.append({"text": text[:60], "attempts": r.get("attempts", [])})
             return float(r["dur"])
 
 

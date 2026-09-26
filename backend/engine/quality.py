@@ -24,11 +24,11 @@ RULES = {
     "min_text_contrast": 4.5,                              # WCAG 2.x AA
     "min_text_px": 48,                                     # at 1080p
     "min_items": 6,
-    "wpm_min": 90, "wpm_max": 160,                         # energetic but understandable for preschoolers
+    "wpm_min": 90, "wpm_max": 150,                         # energetic but understandable for preschoolers
     "min_interjection_ratio": 0.8,                         # acting rule: >= 80 % of lines start with Wow/Oh/Yay...
     "min_tagged_ratio": 0.95,                              # every line carries an emotion tag
     "min_whisper_lines": 5,                                # dynamic range: not only shouting
-    "approved_voices": ["af_heart", "ef_dora", "ff_siwis", "pf_dora", "chatterbox_default"],
+    "approved_voices": ["af_heart", "ef_dora", "ff_siwis", "pf_dora", "chatterbox_female_bella", "chatterbox_male_puck"],
     "title_max": 100, "description_min": 400,
 }
 
