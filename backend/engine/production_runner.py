@@ -27,7 +27,9 @@ import urllib.request
 from typing import Any, Callable, Dict, List, Optional
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from backend.engine.curriculum import TEMPLATE_VERSION, get_episode, youtube_metadata, episode_dna_row  # noqa: E402
+from backend.engine.longform import PACKS_BY_ID, TEMPLATE_VERSION, build_timeline, episode_dna_row  # noqa: E402
+from backend.engine.longform import youtube_metadata as longform_metadata  # noqa: E402
+from backend.engine import longform_engine, tts  # noqa: E402
 from backend.engine.supabase_rest import SupabaseREST  # noqa: E402
 from backend.engine import visuals  # noqa: E402
 from backend.engine.quality import QualityGateError, RULES, STANDARD_ID, evaluate, measure  # noqa: E402
@@ -114,30 +116,30 @@ class ProductionEngine:
 
     # --------------------------------------------------------------------- QA
     @staticmethod
-    def run_linguistic_and_pedagogical_qa(language: str, episode: Dict[str, Any]) -> Dict[str, Any]:
-        scenes = episode["scenes"]
-        if len(scenes) != 5:
-            raise QualityGateError(f"PEDAGOGICAL FAULT: expected 5 scenes, got {len(scenes)}")
-        full_text = " ".join(s["speech"] for s in scenes)
+    def run_linguistic_and_pedagogical_qa(language: str, pack: Dict[str, Any]) -> Dict[str, Any]:
+        """Content gate on the script before any compute is spent."""
+        items = pack["items"]
+        if len(items) < 6:
+            raise QualityGateError(f"PEDAGOGICAL FAULT: only {len(items)} items (need >= 6)")
+        segs = build_timeline(pack)
+        text = " ".join(x["text"] for x in segs if x["text"])
         if language == "EN":
-            if re.search(r"[çğıöşüİÇĞÖŞÜ]", full_text):
+            if re.search(r"[çğıöşüİÇĞÖŞÜ]", text):
                 raise QualityGateError("LINGUISTIC FAULT: Turkish characters in EN narration")
-            if re.search(r"[^\x20-\x7E]", full_text):
+            if re.search(r"[^\x20-\x7E]", text):
                 raise QualityGateError("LINGUISTIC FAULT: non-ASCII characters in EN narration")
-            for marker in ("merhaba", "renk", "harika", "evet", "tebrikler", "bugün", "çocuk"):
-                if re.search(rf"\b{marker}\b", full_text.lower()):
-                    raise QualityGateError(f"LINGUISTIC FAULT: Turkish token '{marker}' in EN narration")
-        for s in scenes:
-            key = s["key"].lower()
-            sp = s["speech"].lower()
-            if f"can you say {key}?" not in sp:
-                raise QualityGateError(f"PEDAGOGICAL FAULT: missing 'Can you say {key}?' in scene {s['scene_id']}")
-            if f"{key}!" not in sp:
-                raise QualityGateError(f"PEDAGOGICAL FAULT: missing reinforcement '{key}!' in scene {s['scene_id']}")
-            if len(sp.split()) > 45:
-                raise QualityGateError(f"PEDAGOGICAL FAULT: scene {s['scene_id']} too long for age {episode['age_group']}")
-        logger.info("[QA] Linguistic & pedagogical gate PASSED (%s, %d scenes)", language, len(scenes))
-        return {"passed": True, "scenes": len(scenes), "keys": [s["key"] for s in scenes]}
+        for it in items:
+            if len(it["examples"]) < 3:
+                raise QualityGateError(f"PEDAGOGICAL FAULT: item {it['key']} has < 3 examples")
+        for x in segs:
+            if x["text"] and len(x["text"].split()) > 45:
+                raise QualityGateError(f"PEDAGOGICAL FAULT: one narration line has > 45 words: {x['text'][:60]}")
+        n_countdown = sum(1 for x in segs if x["kind"] == "countdown")
+        if n_countdown < len(items):
+            raise QualityGateError("INTERACTION FAULT: fewer countdowns than items")
+        logger.info("[QA] Script gate PASSED (%s, %d items, %d segments, %d countdowns)",
+                    language, len(items), len(segs), n_countdown)
+        return {"passed": True}
 
     # -------------------------------------------------------------------- TTS
     def _tts_scene(self, language: str, text: str, wav_path: str) -> None:
@@ -385,10 +387,31 @@ class ProductionEngine:
         logger.info("[YouTube] requested %s -> YouTube reports %s", privacy, final)
         return final
 
+    def produce_longform(self, pack: Dict[str, Any], language: str, job_id: str, seed_int: int) -> Dict[str, Any]:
+        segs = build_timeline(pack, seed=seed_int)
+        total = longform_engine.plan_audio(pack, segs, language, SCRATCH_DIR, job_id, seed_int)
+        audio = longform_engine.mix_audio(segs, total, SCRATCH_DIR, os.path.join(OUTPUT_DIR, f"{job_id}_master.wav"),
+                                          seed_int)
+        self._stage(self._job, "RENDERING")
+        rv = longform_engine.render(pack, segs, SCRATCH_DIR, None, job_id)
+        mp4 = os.path.join(OUTPUT_DIR, f"{job_id}_{pack['episode_id'].lower()}.mp4")
+        longform_engine.mux(rv["video_only"], audio["path"], mp4)
+        thumb = visuals.render_longform_thumbnail(pack, os.path.join(OUTPUT_DIR, f"{job_id}_thumbnail.jpg"))
+        meta = longform_metadata(pack, longform_engine.chapters(segs))
+        meta["made_for_kids"] = True
+        design = {"items": len(pack["items"]), "text_checks": rv["text_checks"], "pictures": rv["pictures"],
+                  "character_every_scene": True, "decorations": rv["decorations"], "music_bed": audio["music_bed"],
+                  "countdowns": rv["countdowns"], "wpm": audio["wpm"], "words": audio["words"],
+                  "voice": tts.VOICES[language]["voice"], "segments": len(segs)}
+        logger.info("[Long-form] %s: %.1fs, %d words @ %.0f wpm", mp4, total, audio["words"], audio["wpm"])
+        return {"mp4": mp4, "thumbnail": thumb, "design": design, "meta": meta}
+
     # -------------------------------------------------------------- main flow
     def run_production(self, episode_id: str, language: str = "EN") -> Dict[str, Any]:
         language = language.upper()
-        episode = get_episode(episode_id)
+        if episode_id not in PACKS_BY_ID:
+            raise KeyError(f"Unknown episode {episode_id}. Known: {list(PACKS_BY_ID)}")
+        episode = PACKS_BY_ID[episode_id]
         job_id, seed = make_job_id(episode_id, language)
         logger.info("=" * 64)
         logger.info("PRODUCTION %s  %s [%s]", job_id, episode_id, language)
@@ -396,8 +419,8 @@ class ProductionEngine:
 
         if language not in LOCALIZED_LANGUAGES:
             raise LanguageNotReady(f"{language}: localized narration + language QA not implemented yet")
-        if language not in PRODUCTION_VOICES:
-            raise LanguageNotReady(f"{language}: no approved Piper voice")
+        if language not in tts.VOICES:
+            raise LanguageNotReady(f"{language}: no approved narrator voice")
 
         # ---- idempotency guard (episode + language + template_version) ----
         existing = self.db.get_job(job_id) if self.db.connected else None
@@ -429,12 +452,10 @@ class ProductionEngine:
             job["educational_qa_passed"] = True
 
             self._stage(job, "TTS_SYNTHESIS")
-            audio = self.synthesize_audio(language, episode, job_id)
-
-            self._stage(job, "RENDERING")
-            render = self.render_video(episode, audio, job_id)
+            self._job = job
+            render = self.produce_longform(episode, language, job_id, int(seed[:6], 16))
             mp4 = render["mp4"]
-            meta = youtube_metadata(episode, language)
+            meta = render["meta"]
 
             self._stage(job, "QA_TECHNICAL", local_mp4_path=mp4)
             report = self.run_quality_gate(render, meta, job_id)

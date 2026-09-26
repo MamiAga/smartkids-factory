@@ -1,4 +1,4 @@
-"""SKQS-1 — SmartKids Quality Standard, version 1 (see docs/QUALITY_STANDARD.md).
+"""SKQS-2 — SmartKids Quality Standard, version 2 (see docs/QUALITY_STANDARD.md).
 
 A video that fails ANY hard rule is never uploaded (job -> FAILED_QA). Every rule is measured on
 the final MP4 (ffprobe / ffmpeg filters) or on numbers recorded while rendering — nothing is assumed.
@@ -8,24 +8,25 @@ import re
 import subprocess
 from typing import Any, Dict, List
 
-STANDARD_ID = "SKQS-1"
+STANDARD_ID = "SKQS-2"
 
 RULES = {
     "width": 1920, "height": 1080, "fps": 60,
     "video_codec": "h264", "video_profile": "High", "pix_fmt": "yuv420p",
     "audio_codec": "aac", "audio_rate": 48000, "audio_channels": 2,
-    "min_duration": 45.0, "max_duration": 90.0,
+    "min_duration": 495.0, "max_duration": 630.0,          # 8:15 - 10:30 (mid-roll eligible)
     "loudness_target": -16.0, "loudness_tol": 1.0,       # integrated LUFS (EBU R128)
     "true_peak_max": -1.0,                                 # dBTP
-    "max_silence_sec": 4.5,                                # silencedetect @ -45 dB
+    "max_silence_sec": 1.0,                                # zero-silence rule: music bed never stops
     "max_black_sec": 0.5,                                  # blackdetect
-    "max_luma_step": 12.0,                                 # flash guard: YAVG change per frame (0-255)
+    "flash_delta": 25.0,                                   # a frame-to-frame YAVG jump above this counts as a flash
+    "max_flashes_per_sec": 2,                              # WCAG 2.3.1 / Harding: fewer than 3 flashes in any second
     "min_text_contrast": 4.5,                              # WCAG 2.x AA
     "min_text_px": 48,                                     # at 1080p
-    "scenes": 5,
-    "min_pause_sec": 2.0, "max_pause_sec": 4.0,            # interaction pause after each prompt
-    "max_words_per_scene": 45,
-    "title_max": 100, "description_min": 200,
+    "min_items": 6,
+    "wpm_min": 90, "wpm_max": 150,                         # calm storyteller pace for preschoolers
+    "approved_voices": ["af_heart", "ef_dora", "ff_siwis", "pf_dora"],
+    "title_max": 100, "description_min": 400,
 }
 
 
@@ -65,11 +66,19 @@ def measure(mp4: str) -> Dict[str, Any]:
     m["silences"] = [float(x) for x in re.findall(r"silence_duration:\s*([\d.]+)", out)]
     # black segments + flash guard (per-frame average luma)
     out = _ff(["ffmpeg", "-nostats", "-i", mp4, "-an", "-vf",
-               "blackdetect=d=0.1:pix_th=0.05,signalstats,metadata=print:key=lavfi.signalstats.YAVG",
+               "scale=320:180,blackdetect=d=0.1:pix_th=0.05,signalstats,metadata=print:key=lavfi.signalstats.YAVG",
                "-f", "null", "-"])
     m["black_segments"] = [float(x) for x in re.findall(r"black_duration:\s*([\d.]+)", out)]
     yavg = [float(x) for x in re.findall(r"lavfi\.signalstats\.YAVG=([\d.]+)", out)]
-    m["max_luma_step"] = round(max((abs(b - a) for a, b in zip(yavg, yavg[1:])), default=0.0), 2)
+    steps = [abs(b - a) for a, b in zip(yavg, yavg[1:])]
+    m["max_luma_step"] = round(max(steps, default=0.0), 2)
+    flash_frames = [i for i, d in enumerate(steps) if d > RULES["flash_delta"]]
+    worst, j = 0, 0
+    for i, f in enumerate(flash_frames):          # sliding 1-second window (60 frames)
+        while f - flash_frames[j] >= 60:
+            j += 1
+        worst = max(worst, i - j + 1)
+    m["max_flashes_per_sec"] = worst
     m["frames_analyzed"] = len(yavg)
     return m
 
@@ -97,24 +106,32 @@ def evaluate(m: Dict[str, Any], design: Dict[str, Any], meta: Dict[str, Any]) ->
     need(tp is not None and tp <= R["true_peak_max"], f"true peak {tp} dBTP")
     need(all(s <= R["max_silence_sec"] for s in m["silences"]), f"silence gap {max(m['silences'], default=0)}s")
     need(all(b <= R["max_black_sec"] for b in m["black_segments"]), f"black segment {max(m['black_segments'], default=0)}s")
-    need(m["max_luma_step"] <= R["max_luma_step"], f"flash guard: luma step {m['max_luma_step']}")
+    need(m.get("max_flashes_per_sec", 99) <= R["max_flashes_per_sec"],
+         f"flash guard: {m.get('max_flashes_per_sec')} flashes within one second")
 
-    # design-time facts recorded by the renderer
-    need(design.get("scenes") == R["scenes"], f"scenes {design.get('scenes')}")
+    # design-time facts recorded by the renderer / mixer
+    items = design.get("items", 0)
+    need(items >= R["min_items"], f"only {items} learning items")
     for t in design.get("text_checks", []):
         need(t["contrast"] >= R["min_text_contrast"], f"text contrast {t['contrast']} for '{t['text']}'")
         need(t["px"] >= R["min_text_px"], f"text size {t['px']}px for '{t['text']}'")
-    need(all(design.get("pictures", [])) and len(design.get("pictures", [])) == R["scenes"], "scene without picture")
-    need(design.get("character_every_scene") is True, "Lumi missing in a scene")
-    pause = design.get("pause_sec", 0)
-    need(R["min_pause_sec"] <= pause <= R["max_pause_sec"], f"interaction pause {pause}s")
+    need(bool(design.get("pictures")) and all(design["pictures"]), "segment without picture")
+    need(design.get("character_every_scene") is True, "Lumi missing in a segment")
+    need(design.get("decorations") is True, "no flower/bug decorations")
+    need(design.get("music_bed") is True, "no continuous music bed")
+    need(design.get("countdowns", 0) >= items, f"countdowns {design.get('countdowns')} < items {items}")
+    wpm = design.get("wpm", 0)
+    need(R["wpm_min"] <= wpm <= R["wpm_max"], f"narration pace {wpm} wpm")
+    need(design.get("voice") in R["approved_voices"], f"voice {design.get('voice')} not approved")
 
     # metadata
     need(0 < len(meta.get("title", "")) <= R["title_max"], "title length")
     need("EP-" not in meta.get("title", ""), "internal id in title")
     need(len(meta.get("description", "")) >= R["description_min"], "description too short")
-    need("Apache" in meta.get("description", "") and "CC BY" in meta.get("description", ""), "attribution missing")
+    need("0:00" in meta.get("description", ""), "no chapters")
+    need("Apache" in meta.get("description", ""), "attribution missing")
     need(bool(meta.get("tags")), "no tags")
+    need(meta.get("made_for_kids") is True, "must be declared made for kids (COPPA)")
 
     return {"standard": STANDARD_ID, "passed": not f, "failures": f, "measurements": m,
             "design": {k: v for k, v in design.items() if k != "text_checks"},

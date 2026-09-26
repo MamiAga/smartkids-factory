@@ -269,3 +269,220 @@ def render_thumbnail(ep: Dict[str, Any], out_path: str) -> str:
     rgba.alpha_composite(lumi, (60, th - lumi.height - 20))
     rgba.convert("RGB").save(out_path, "JPEG", quality=90)
     return out_path
+
+
+# =========================================================================== SKQS-2 long-form layouts
+NEUTRAL_BG = "29B6F6"   # sky blue for title / dance / chant / outro
+DECOR = ["🌸", "🦋", "🐞", "🌼", "🐝", "🌷", "🐛", "🌻", "🍀", "🐌"]
+DECOR_SPOTS = [(560, 60), (1330, 60), (70, 330), (70, 600), (1850, 330), (1850, 600), (1850, 860), (1560, 985)]
+
+
+def _canvas(bg_hex: str, decor: List[str], progress: Tuple[int, int]):
+    pal = accessible_palette(bg_hex)
+    bg, fg = pal["bg"], pal["fg"]
+    im = Image.new("RGBA", (W, H), bg + (255,))
+    d = ImageDraw.Draw(im)
+    checks: List[Dict[str, Any]] = []
+    # brand pill
+    d.rounded_rectangle([60, 50, 380, 130], radius=40, fill=(255, 255, 255, 255))
+    f = _font(48)
+    d.text((220, 90), "SmartKids", font=f, fill=(26, 26, 26), anchor="mm")
+    checks.append({"text": "SmartKids", "px": 48, "contrast": round(contrast((26, 26, 26), (255, 255, 255)), 2)})
+    # progress dots
+    done, total = progress
+    if total:
+        for i in range(total):
+            cx = W - 90 - (total - 1 - i) * 44
+            r = 15 if i == done else 10
+            d.ellipse([cx - r, 90 - r, cx + r, 90 + r], fill=fg if i <= done else None, outline=fg, width=4)
+    # flowers & bugs decoration
+    for (x, y), e in zip(DECOR_SPOTS, decor):
+        spr = emoji_sprite(e, 78)
+        im.alpha_composite(spr, (int(x - spr.width / 2), int(y - spr.height / 2)))
+    return im, d, bg, fg, checks
+
+
+def _text(d, checks, xy, s, px, color, against, max_w=1500, anchor="mm"):
+    font = _fit_font(s, max_w, px)
+    d.text(xy, s, font=font, fill=color, anchor=anchor)
+    checks.append({"text": s, "px": font.size, "contrast": round(contrast(color, against), 2)})
+
+
+def _bubble(d, checks, s):
+    pf = _fit_font(s, 1000, 60)
+    pw = int(pf.getlength(s))
+    bx0, by0 = 370, 935
+    d.rounded_rectangle([bx0, by0, bx0 + pw + 80, by0 + 100], radius=50, fill=(255, 255, 255))
+    d.polygon([(bx0 + 10, by0 + 60), (bx0 - 40, by0 + 90), (bx0 + 40, by0 + 90)], fill=(255, 255, 255))
+    d.text((bx0 + 40 + pw / 2, by0 + 50), s, font=pf, fill=(26, 26, 26), anchor="mm")
+    checks.append({"text": s, "px": pf.size, "contrast": round(contrast((26, 26, 26), (255, 255, 255)), 2)})
+
+
+def _row(emojis: List[str], size: int, gap: int = 30, highlight: int = -1) -> Image.Image:
+    sprites = []
+    for i, e in enumerate(emojis):
+        s = emoji_sprite(e, int(size * (1.35 if i == highlight else 1.0)))
+        if i == highlight:
+            ring = Image.new("RGBA", (s.width + 40, s.height + 40), (0, 0, 0, 0))
+            ImageDraw.Draw(ring).ellipse([0, 0, ring.width - 1, ring.height - 1], fill=(255, 255, 255, 150))
+            ring.alpha_composite(s, (20, 20))
+            s = ring
+        sprites.append(s)
+    w = sum(s.width for s in sprites) + gap * (len(sprites) - 1)
+    h = max(s.height for s in sprites)
+    out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    x = 0
+    for s in sprites:
+        out.alpha_composite(s, (x, (h - s.height) // 2))
+        x += s.width + gap
+    return out
+
+
+def _tiles(emojis: List[str], correct: int = -1, dim_wrong: bool = False) -> Image.Image:
+    tile, gap = 340, 70
+    out = Image.new("RGBA", (tile * 3 + gap * 2 + 40, tile + 40), (0, 0, 0, 0))
+    d = ImageDraw.Draw(out)
+    for i, e in enumerate(emojis):
+        x = 20 + i * (tile + gap)
+        good = i == correct
+        d.rounded_rectangle([x, 20, x + tile, 20 + tile], radius=48,
+                            fill=(255, 255, 255, 255 if not (dim_wrong and not good) else 110),
+                            outline=(46, 125, 50, 255) if good else None, width=16 if good else 0)
+        s = emoji_sprite(e, 240)
+        if dim_wrong and not good:
+            s.putalpha(s.getchannel("A").point(lambda a: a * 0.35))
+        out.alpha_composite(s, (x + (tile - s.width) // 2, 20 + (tile - s.height) // 2))
+        if good:
+            st = emoji_sprite("⭐", 110)
+            out.alpha_composite(st, (x + tile - 90, 0))
+    return out
+
+
+def _badge(n: int) -> Image.Image:
+    im = Image.new("RGBA", (260, 260), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.ellipse([10, 10, 250, 250], fill=(255, 255, 255, 255), outline=(255, 179, 0, 255), width=14)
+    d.text((130, 138), str(n), font=_font(170), fill=(26, 26, 26), anchor="mm")
+    return im
+
+
+def render_segment(pack: Dict[str, Any], v: Dict[str, Any], out_dir: str, prefix: str, seq: int,
+                   decor: List[str]) -> Dict[str, Any]:
+    """Return {"frames": [{"bg": png, "hero": png, "hero_y": int}], "text_checks": [...], "has_picture": bool}.
+    Countdown segments return 3 frames (3, 2, 1)."""
+    items = pack["items"]
+    kind = v["kind"]
+    it = items[v["item"]] if "item" in v else None
+    bg_hex = it["bg_hex"] if it else NEUTRAL_BG
+    progress = (v["item"], len(items)) if it else (0, 0)
+    frames, checks_all = [], []
+
+    def finish(im, hero, hero_y=375, tag=""):
+        p_bg = os.path.join(out_dir, f"{prefix}_{seq:03d}{tag}_bg.png")
+        p_hero = os.path.join(out_dir, f"{prefix}_{seq:03d}{tag}_hero.png")
+        im.convert("RGB").save(p_bg)
+        hero.save(p_hero)
+        frames.append({"bg": p_bg, "hero": p_hero, "hero_y": hero_y})
+
+    noun = pack["noun"]
+    if kind == "countdown":
+        for n in (3, 2, 1):
+            im, d, bg, fg, ch = _canvas(bg_hex, decor, progress)
+            style = v.get("style")
+            if style == "mystery":
+                hero = _badge(n)
+                _text(d, ch, (W / 2, 745), f"Guess the next {noun}!", 110, fg, bg)
+            elif style == "quiz":
+                hero = _tiles(v["choices"])
+                _text(d, ch, (W / 2, 690), f"Which one is {it['key']}?", 96, fg, bg)
+                b = _badge(n)
+                im.alpha_composite(b.resize((190, 190)), (W // 2 - 95, 790))
+            else:  # review
+                hero = emoji_sprite(it["pic"], 360)
+                b = _badge(n)
+                im.alpha_composite(b.resize((190, 190)), (W // 2 - 95, 700))
+            _bubble(d, ch, f"{n}...")
+            checks_all += ch
+            finish(im, hero, 330 if style == "quiz" else 375, tag=f"_{n}")
+        return {"frames": frames, "text_checks": checks_all, "has_picture": True}
+
+    im, d, bg, fg, ch = _canvas(bg_hex, decor, progress)
+    hero_y = 375
+    if kind == "title":
+        hero = _row([i["pic"] for i in items], 150, 24)
+        _text(d, ch, (W / 2, 745), v.get("title", pack["thumb_text"]), 140, fg, bg)
+        _bubble(d, ch, "Let's learn and play!")
+    elif kind == "mystery":
+        hero = emoji_sprite("❓", 330)
+        _text(d, ch, (W / 2, 745), f"Guess the next {noun}!", 110, fg, bg)
+        _bubble(d, ch, "Get ready!")
+    elif kind in ("reveal", "repeat"):
+        hero = emoji_sprite(it["pic"], 380)
+        _text(d, ch, (W / 2, 745), it["label"], 170, fg, bg)
+        if it.get("phrase") and pack["family"] == "colors":
+            _text(d, ch, (W / 2, 862), it["phrase"].capitalize(), 64, fg, bg, max_w=1300)
+        _bubble(d, ch, f"Can you say {it['key']}?" if kind == "repeat" else f"It's {it['key']}!")
+    elif kind == "example":
+        hero = emoji_sprite(v["emoji"], 360)
+        _text(d, ch, (W / 2, 745), v["caption"].capitalize() if pack["family"] == "colors" else it["label"], 130, fg, bg)
+        if pack["family"] == "colors":
+            _text(d, ch, (W / 2, 862), f"is {it['key']}!", 72, fg, bg)
+        _bubble(d, ch, f"{it['label'].title()}!")
+    elif kind in ("quiz", "answer"):
+        hero = _tiles(v["choices"], correct=v.get("correct", -1), dim_wrong=kind == "answer")
+        hero_y = 330
+        q = f"Which one is {it['key']}?" if pack["family"] == "colors" else f"Which one is the {it['key']}?"
+        _text(d, ch, (W / 2, 690), q, 96, fg, bg)
+        _bubble(d, ch, "Guess!" if kind == "quiz" else "Yes! Great job!")
+    elif kind in ("review", "review_answer"):
+        hero = emoji_sprite(it["pic"], 380)
+        if kind == "review_answer":
+            _text(d, ch, (W / 2, 745), it["label"], 170, fg, bg)
+            _bubble(d, ch, "You got it!")
+        else:
+            _text(d, ch, (W / 2, 745), f"What {noun} is this?", 110, fg, bg)
+            _bubble(d, ch, "Shout it out!")
+    elif kind in ("chant", "chant_intro"):
+        hl = v.get("item", -1) if kind == "chant" else -1
+        hero = _row([i["pic"] for i in items], 140, 24, highlight=hl)
+        _text(d, ch, (W / 2, 745), items[hl]["label"] if hl >= 0 else "Sing along!", 150, fg, bg)
+        _bubble(d, ch, "Sing with me!")
+    elif kind == "dance":
+        hero = _row(["💃", "🕺", "🎵", "👏"], 220, 50)
+        _text(d, ch, (W / 2, 745), "Dance break!", 150, fg, bg)
+        _bubble(d, ch, "Wiggle and clap!")
+    elif kind == "outro":
+        hero = _row([i["pic"] for i in items], 150, 24)
+        _text(d, ch, (W / 2, 745), "Great job!", 160, fg, bg)
+        _bubble(d, ch, "See you next time!")
+    else:
+        raise ValueError(kind)
+    checks_all += ch
+    finish(im, hero, hero_y)
+    return {"frames": frames, "text_checks": checks_all, "has_picture": True}
+
+
+def render_longform_thumbnail(pack: Dict[str, Any], out_path: str) -> str:
+    tw, th = 1280, 720
+    im = Image.new("RGBA", (tw, th), hex_rgb("FFF59D") + (255,))
+    d = ImageDraw.Draw(im)
+    cols = [hex_rgb(i["bg_hex"]) for i in pack["items"]]
+    for i, c in enumerate(cols):   # rainbow sunburst
+        a0, a1 = i * 360 / len(cols), (i + 1) * 360 / len(cols)
+        d.pieslice([-400, -500, tw + 400, th + 700], a0, a1, fill=c + (255,))
+    d.ellipse([tw / 2 - 330, th / 2 - 250, tw / 2 + 330, th / 2 + 330], fill=(255, 255, 255, 235))
+    words = pack["thumb_text"].upper()
+    f = _fit_font(words, 1150, 130, 64)
+    x0 = tw / 2 - f.getlength(words) / 2
+    d.rounded_rectangle([x0 - 30, 30, x0 + f.getlength(words) + 30, 30 + f.size + 50], radius=40, fill=(255, 255, 255, 255),
+                        outline=(26, 26, 26, 255), width=6)
+    d.text((tw / 2, 30 + (f.size + 50) / 2), words, font=f, fill=(26, 26, 26), anchor="mm")
+    row = _row([i["pic"] for i in pack["items"][:4]], 170, 20)
+    im.alpha_composite(row, (int(tw / 2 - row.width / 2), 300))
+    for (x, y), e in zip([(70, 640), (1210, 640), (1210, 260), (70, 260), (640, 660)], DECOR):
+        s = emoji_sprite(e, 100)
+        im.alpha_composite(s, (int(x - s.width / 2), int(y - s.height / 2)))
+    lumi = lumi_sprite(300)
+    im.alpha_composite(lumi, (20, th - lumi.height))
+    im.convert("RGB").save(out_path, "JPEG", quality=92)
+    return out_path

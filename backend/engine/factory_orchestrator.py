@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from backend.engine.curriculum import CATALOG  # noqa: E402
+from backend.engine.longform import PACKS as CATALOG  # noqa: E402  (SKQS-2 long-form catalog)
 from backend.engine.supabase_rest import SupabaseREST, utc_now_iso  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
