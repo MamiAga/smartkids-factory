@@ -1,13 +1,14 @@
 name: Voice Audition (pick the most theatrical narrator)
 
-# Renders the same ~80 s opening with 5 narrator setups, mixed like production.
+# Renders the same ~80 s opening with 5 narrator setups (girl/boy/default), mixed like production,
+# every line checked by the Whisper distortion guard and paced to ~130 wpm.
 # Download the artifact, listen, and pick A-E. No upload, no Supabase, 0 TL.
 
 on:
   workflow_dispatch:
     inputs:
       only:
-        description: 'Comma list of variants to render (A,B,C,D,E) - empty = all'
+        description: 'Comma list of variants (E2,F1,F2,M1,M2) - empty = all'
         required: false
         default: ''
 
@@ -29,7 +30,7 @@ jobs:
         run: |
           python3 -m venv /tmp/cbenv
           /tmp/cbenv/bin/pip install -q --upgrade pip
-          /tmp/cbenv/bin/pip install -q chatterbox-tts==0.1.7
+          /tmp/cbenv/bin/pip install -q chatterbox-tts==0.1.7 faster-whisper
       - name: Download Kokoro model
         run: python3 backend/tools/download_models.py --kokoro
       - name: Render auditions

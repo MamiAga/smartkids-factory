@@ -73,7 +73,7 @@ jobs:
         run: |
           python3 -m venv /tmp/cbenv
           /tmp/cbenv/bin/pip install -q --upgrade pip
-          /tmp/cbenv/bin/pip install -q chatterbox-tts==0.1.7
+          /tmp/cbenv/bin/pip install -q chatterbox-tts==0.1.7 faster-whisper
 
       - name: Download Kokoro narrator model
         run: python3 backend/tools/download_models.py --kokoro
