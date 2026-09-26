@@ -57,7 +57,7 @@ jobs:
     needs: gate
     if: needs.gate.outputs.should_run == 'true'
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 90
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v7
         with:
@@ -72,11 +72,11 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install FFmpeg, fonts (DejaVu + Noto Color Emoji), Pillow
+      - name: Install FFmpeg, fonts, Pillow, Kokoro TTS
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg fonts-dejavu-core fonts-noto-color-emoji
-          pip install -q pillow==12.*
+          pip install -q pillow==12.* numpy soundfile kokoro-onnx==0.6.1
 
       - name: Install Piper TTS (ARM64)
         run: |
@@ -90,8 +90,8 @@ jobs:
       - name: Unit tests (decision logic + curriculum QA)
         run: python3 -m unittest discover -s backend/tests -v
 
-      - name: Download Piper voices for active languages
-        run: python3 backend/tools/download_models.py --languages ${{ needs.gate.outputs.languages }}
+      - name: Download Kokoro narrator model
+        run: python3 backend/tools/download_models.py --kokoro
 
       - name: Run factory cycle
         env:

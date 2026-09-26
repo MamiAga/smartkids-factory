@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       episode_id:
-        description: 'Episode ID from backend/engine/curriculum.py'
+        description: 'Episode ID from backend/engine/longform.py'
         required: true
-        default: 'EP-COLORS-5-V1'
+        default: 'EP-COLORS-MEGA-V1'
       language:
         description: 'Target language (EN)'
         required: true
@@ -20,7 +20,7 @@ on:
         type: boolean
         default: false
       publish:
-        description: 'Privacy after processing + SKQS-1 gate'
+        description: 'Privacy after processing + SKQS-2 gate'
         type: choice
         options: [PRIVATE, UNLISTED, PUBLIC]
         default: PRIVATE
@@ -33,7 +33,7 @@ jobs:
   produce_and_verify:
     runs-on: ubuntu-24.04-arm
     name: Production Pipeline Runner (ubuntu-24.04-arm)
-    timeout-minutes: 45
+    timeout-minutes: 120
     env:
       ALLOW_PAID_SERVICES: 'false'
     steps:
@@ -46,11 +46,11 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install FFmpeg, fonts (DejaVu + Noto Color Emoji), Pillow
+      - name: Install FFmpeg, fonts, Pillow, Kokoro TTS
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg fonts-dejavu-core fonts-noto-color-emoji
-          pip install -q pillow==12.*
+          pip install -q pillow==12.* numpy soundfile kokoro-onnx==0.6.1
 
       - name: Install Piper TTS (architecture-aware)
         run: |
@@ -63,8 +63,8 @@ jobs:
       - name: Unit tests
         run: python3 -m unittest discover -s backend/tests -v
 
-      - name: Download Piper voice
-        run: python3 backend/tools/download_models.py --languages "${{ inputs.language }}"
+      - name: Download Kokoro narrator model
+        run: python3 backend/tools/download_models.py --kokoro
 
       - name: Run production job
         env:
