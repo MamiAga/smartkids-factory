@@ -103,6 +103,14 @@ def plan_audio(pack, segs, language, scratch, job_id, seed) -> float:
             victim = max((v for v in per.values() if len(v) > 2), key=lambda v: v[-1])[-1]
             del segs[victim]
             why = "third example"
+        elif reviews:                                   # 4) drop the remaining review questions one by one
+            del segs[reviews[-1]:reviews[-1] + 3]
+            why = "review question (below 4)"
+        elif any(x["kind"] == "repeat" and (x.get("pad") or 0) > 1.0 for x in segs):
+            for x in segs:                              # 5) shorter "repeat after me" pauses
+                if x["kind"] == "repeat":
+                    x["pad"] = 1.0
+            why = "repeat pauses"
         else:
             break
         total = _durations(segs)
