@@ -26,8 +26,16 @@ def pitch_up(path: str, ratio: float) -> None:
     os.replace(tmp, path)
 
 
-def render(name: str, engine: str, kokoro_styles=None, pitch=None, exag=None) -> dict:
+def render(name: str, engine: str, kokoro_styles=None, pitch=None, exag=None, narrator=None, ref_voice=None) -> dict:
     tts.ENGINE = engine
+    if narrator:
+        if ref_voice:
+            tts.NARRATORS[narrator]["kokoro_voice"] = ref_voice
+        tts.set_narrator(narrator)
+        if tts._cb is not None:
+            tts._cb.kill()
+            tts._cb = None
+    tts.CB_LOG.clear()
     if exag is not None:  # restart the worker with a new emotion intensity
         os.environ["CB_EXAG_EXCITED"] = str(exag)
         if tts._cb is not None:
@@ -60,7 +68,11 @@ def render(name: str, engine: str, kokoro_styles=None, pitch=None, exag=None) ->
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", wav, "-b:a", "192k", mp3], check=True)
     tts.STYLES.clear()
     tts.STYLES.update(saved)
-    res = {"name": name, "engine": engine, "seconds": round(total, 1), "speech_sec": round(speech, 1),
+    retakes = sum(max(0, len(x["attempts"]) - 1) for x in tts.CB_LOG)
+    worst = max((a["wer"] for x in tts.CB_LOG for a in x["attempts"] if a.get("ok")), default=None)
+    words = sum(s.get("words", 0) for s in segs)
+    res = {"name": name, "engine": engine, "narrator": narrator, "ref_voice": ref_voice, "retakes": retakes,
+           "worst_accepted_wer": worst, "wpm": round(words / (speech / 60), 1) if speech else None, "seconds": round(total, 1), "speech_sec": round(speech, 1),
            "synth_sec": round(synth_sec, 1), "realtime_factor": round(synth_sec / max(speech, 0.1), 2), "file": mp3}
     log.info("AUDITION %s", res)
     return res
@@ -68,13 +80,12 @@ def render(name: str, engine: str, kokoro_styles=None, pitch=None, exag=None) ->
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    variants = [
-        ("A_kokoro_current", dict(engine="kokoro")),
-        ("B_kokoro_bright_pitch", dict(engine="kokoro", pitch=1.12, kokoro_styles={
-            "excited": {"speed": 1.02, "gain": 1.0, "gap": 0.22}, "calm": {"speed": 0.9, "gain": 0.9, "gap": 0.35}})),
-        ("C_chatterbox_exag070", dict(engine="chatterbox", exag=0.70)),
-        ("D_chatterbox_exag100", dict(engine="chatterbox", exag=1.00)),
-        ("E_chatterbox_exag130", dict(engine="chatterbox", exag=1.30)),
+    variants = [  # all Chatterbox takes pass the Whisper distortion guard + pacing to ~130 wpm
+        ("E2_default_voice_guarded", dict(engine="chatterbox", exag=1.1, narrator="default")),
+        ("F1_girl_bella", dict(engine="chatterbox", exag=1.1, narrator="female", ref_voice="af_bella")),
+        ("F2_girl_nicole", dict(engine="chatterbox", exag=1.1, narrator="female", ref_voice="af_nicole")),
+        ("M1_boy_puck", dict(engine="chatterbox", exag=1.1, narrator="male", ref_voice="am_puck")),
+        ("M2_boy_michael", dict(engine="chatterbox", exag=1.1, narrator="male", ref_voice="am_michael")),
     ]
     only = os.getenv("AUDITION_ONLY")
     results = []
