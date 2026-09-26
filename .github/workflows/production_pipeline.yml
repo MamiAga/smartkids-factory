@@ -19,8 +19,13 @@ on:
         description: 'Render + QA only (no YouTube upload, no Supabase write)'
         type: boolean
         default: false
+      tts_engine:
+        description: 'Narrator engine'
+        type: choice
+        options: [kokoro, chatterbox]
+        default: kokoro
       publish:
-        description: 'Privacy after processing + SKQS-2 gate'
+        description: 'Privacy after processing + SKQS-3 gate'
         type: choice
         options: [PRIVATE, UNLISTED, PUBLIC]
         default: PRIVATE
@@ -63,6 +68,13 @@ jobs:
       - name: Unit tests
         run: python3 -m unittest discover -s backend/tests -v
 
+      - name: Install Chatterbox (only when selected)
+        if: inputs.tts_engine == 'chatterbox'
+        run: |
+          python3 -m venv /tmp/cbenv
+          /tmp/cbenv/bin/pip install -q --upgrade pip
+          /tmp/cbenv/bin/pip install -q chatterbox-tts==0.1.7
+
       - name: Download Kokoro narrator model
         run: python3 backend/tools/download_models.py --kokoro
 
@@ -73,6 +85,8 @@ jobs:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN_EN: ${{ secrets.YOUTUBE_REFRESH_TOKEN_EN }}
+          SMARTKIDS_TTS_ENGINE: ${{ inputs.tts_engine }}
+          CHATTERBOX_PY: /tmp/cbenv/bin/python
         run: |
           FLAGS="--strict-supabase --publish ${{ inputs.publish }}"
           [ "${{ inputs.dry_run }}" = "true" ] && FLAGS="--dry-run"

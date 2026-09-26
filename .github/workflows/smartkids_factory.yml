@@ -90,6 +90,13 @@ jobs:
       - name: Unit tests (decision logic + curriculum QA)
         run: python3 -m unittest discover -s backend/tests -v
 
+      - name: Install Chatterbox (only when selected)
+        if: vars.SMARTKIDS_TTS_ENGINE == 'chatterbox'
+        run: |
+          python3 -m venv /tmp/cbenv
+          /tmp/cbenv/bin/pip install -q --upgrade pip
+          /tmp/cbenv/bin/pip install -q chatterbox-tts==0.1.7
+
       - name: Download Kokoro narrator model
         run: python3 backend/tools/download_models.py --kokoro
 
@@ -105,6 +112,8 @@ jobs:
           YOUTUBE_REFRESH_TOKEN_DE: ${{ secrets.YOUTUBE_REFRESH_TOKEN_DE }}
           YOUTUBE_REFRESH_TOKEN_FR: ${{ secrets.YOUTUBE_REFRESH_TOKEN_FR }}
           YOUTUBE_REFRESH_TOKEN_PT: ${{ secrets.YOUTUBE_REFRESH_TOKEN_PT }}
+          SMARTKIDS_TTS_ENGINE: ${{ vars.SMARTKIDS_TTS_ENGINE || 'kokoro' }}
+          CHATTERBOX_PY: /tmp/cbenv/bin/python
         run: |
           FLAGS="--strict-supabase"
           [ "${{ inputs.run_now }}" = "true" ] && FLAGS="$FLAGS --run-now"

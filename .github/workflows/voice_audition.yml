@@ -1,0 +1,47 @@
+name: Voice Audition (pick the most theatrical narrator)
+
+# Renders the same ~80 s opening with 5 narrator setups, mixed like production.
+# Download the artifact, listen, and pick A-E. No upload, no Supabase, 0 TL.
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: 'Comma list of variants to render (A,B,C,D,E) - empty = all'
+        required: false
+        default: ''
+
+jobs:
+  audition:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+      - name: Install FFmpeg + Kokoro
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          pip install -q numpy soundfile kokoro-onnx==0.6.1 pillow
+      - name: Install Chatterbox (separate venv, needs numpy<2)
+        run: |
+          python3 -m venv /tmp/cbenv
+          /tmp/cbenv/bin/pip install -q --upgrade pip
+          /tmp/cbenv/bin/pip install -q chatterbox-tts==0.1.7
+      - name: Download Kokoro model
+        run: python3 backend/tools/download_models.py --kokoro
+      - name: Render auditions
+        env:
+          CHATTERBOX_PY: /tmp/cbenv/bin/python
+          AUDITION_ONLY: ${{ inputs.only }}
+        run: python3 backend/tools/voice_audition.py
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: voice-audition-${{ github.run_id }}
+          path: |
+            /tmp/smartkids_output/audition_*.mp3
+            /tmp/smartkids_output/audition.json
+          retention-days: 14
