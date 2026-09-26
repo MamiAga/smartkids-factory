@@ -1,4 +1,4 @@
-# SKQS-2 — SmartKids Video Kalite Standardı (v2)
+# SKQS-3 — SmartKids Video Kalite Standardı (v3: Oyunculuk Kuralı)
 
 Kural: **Tek bir madde geçmezse video YouTube'a yüklenmez** (iş `FAILED_QA`, fabrika sıradaki bölüme geçer).
 Ölçümler son MP4 üzerinde yapılır (`backend/engine/quality.py`); rapor her işte `<job_id>_quality_report.json` olarak artifact'a konur.
@@ -45,3 +45,18 @@ Kural: **Tek bir madde geçmezse video YouTube'a yüklenmez** (iş `FAILED_QA`, 
 ## 6. Yayın
 Kalite kapısı geçti → private yükleme → YouTube işlemesi bitti → `publish_mode` (AUTO = public).
 API denetimi onaylanana kadar YouTube videoyu private'ta tutar; sistem bunu `PUBLISH_BLOCKED_BY_YOUTUBE` olarak kaydeder.
+
+## 7. Oyunculuk kuralı (SKQS-3)
+| Kural | Eşik (ölçülür) |
+|---|---|
+| Nida | Satırların ≥ %80'i "Wow / Oh / Ooh / Yay / Oh-oh / Look / Hooray / Woo-hoo / Whee" ile başlar (şarkı kelimeleri hariç) |
+| Duygu etiketi | Satırların ≥ %95'i `[excited]` / `[whisper]` / `[calm]` etiketli. Excited = hızlı ve tam ses, whisper = yavaş ve çok kısık |
+| Dinamik | En az 5 fısıltı satırı (hep bağıran bir ses de monotondur) |
+| Geri sayım | Lumi "Three! Two! One!" der; altında tik-tak saat sesi; sonunda "go" zili |
+| Belirme efekti | Nesne ekrana zıplayarak düşer; sırayla tada / boing / çan / ördek vaklaması / pop |
+| Müzik | 124 BPM, Lumi konuşurken %70 kısılır, bitince geri yükselir |
+| Konuşma hızı | 90–160 kelime/dk |
+
+Not: Kokoro SSML/duygu etiketi desteklemez. `[excited]` gibi etiketler motor tarafından tempo + ses seviyesi + cümle arası nefes olarak uygulanır;
+heyecanı asıl taşıyan nidalar ve ünlem noktalamasıdır. Gerçek "gülme" sesi üretilemediği için `[laughing]` kullanılmaz.
+Her işte sahne-sahne ses planı `<job_id>_scenes.json` olarak dışa aktarılır (scene_id, duration_sec, background_music, sfx_at_start, text_to_speech).
