@@ -9,10 +9,17 @@ If the timeline is shorter than the target, a bonus quiz round is appended autom
 import random
 from typing import Any, Dict, List
 
-TEMPLATE_VERSION = "4.0.0"  # SKQS-2 long-form template; part of the idempotent job_id
+TEMPLATE_VERSION = "5.0.0"  # SKQS-3 theatrical long-form template; part of the idempotent job_id
 
-PRAISE = ["Great job!", "Wonderful!", "Fantastic!", "You're a superstar!", "Well done!", "Amazing!", "Hooray!",
-          "Super!", "Brilliant!", "Yay, you got it!"]
+# Acting rule: every narrated line carries an interjection + an emotion tag ([excited] / [whisper] / [calm]).
+INTERJECTIONS = ("Wow", "Oh", "Ooh", "Yay", "Oh-oh", "Look", "Hooray", "Woo-hoo", "Whee", "Uh-oh")
+PRAISE = ["[excited] Yay! Great job!", "[excited] Woo-hoo! Wonderful!", "[excited] Wow! Fantastic!",
+          "[excited] Yay! You're a superstar!", "[excited] Hooray! Well done!", "[excited] Wow, amazing!",
+          "[excited] Whee! Super!", "[excited] Yay, you got it! [whisper] So smart!"]
+# countdown: clock tick-tock under the spoken "3... 2... 1..."; reveal effects rotate for surprise
+COUNT_SFX = [(0.0, "tick"), (0.55, "tock"), (1.1, "tick"), (1.65, "tock"), (2.2, "tick"), (2.75, "go")]
+REVEAL_SFX = ["tada", "boing", "chime", "quack", "pop", "tada", "boing", "quack"]
+COUNT_WORDS = [(0.05, "[excited] Three!"), (1.15, "[excited] Two!"), (2.25, "[excited] One!")]
 DECOR = ["🌸", "🦋", "🐞", "🌼", "🐝", "🌷", "🐛", "🌻", "🍀", "🐌"]
 
 
@@ -29,20 +36,20 @@ PACKS: List[Dict[str, Any]] = [
         "learning_objective": "Recognize and name eight colors using everyday objects",
         "tags": ["learn colors", "colors for toddlers", "colors for kids", "preschool learning",
                  "toddler learning video", "educational videos for toddlers", "kindergarten"],
-        "intro": "Hello, hello, my little friends! I'm Lumi the owl, and today we're going on a colorful adventure! "
-                 "We will find eight beautiful colors, play fun guessing games, and dance together. Are you ready? Let's go!",
-        "mystery": "Can you guess the next color? Get ready!",
-        "reveal": "Look! It's {K}! {K} is {phrase}.",
-        "repeat": "Say it with me: {k}! One more time, nice and loud: {k}!",
-        "example": "What else is {k}? {article} {name}! The {name} is {k}.",
-        "quiz": "Game time! Which one is {k}? Look carefully and guess!",
-        "answer": "Yes! The {name} is {k}! {praise}",
-        "review_q": "What color is this? Shout it out!",
-        "review_a": "It's {k}! {praise}",
-        "chant": "Now let's sing all the colors together!",
-        "dance": "Dance break! Wiggle your arms, stomp your feet, and clap, clap, clap! You're doing so great!",
-        "outro": "Wow! You learned eight colors today: red, blue, yellow, green, purple, orange, pink and brown. "
-                 "I'm so proud of you! Give yourself a big hug. See you next time, bye bye!",
+        "intro": "[excited] Wow! Hello, hello, my little friends! I'm Lumi the owl! [excited] Yay! Today we're going on a super colorful adventure! "
+                 "We will find eight beautiful colors, play guessing games, and dance, dance, dance! [whisper] Are you ready? [excited] Let's go!",
+        "mystery": "[excited] Ooh! What color is coming next? [whisper] Shh... let's count together!",
+        "reveal": "[excited] Wow! It's {K}! [excited] Yay! {K} is {phrase}!",
+        "repeat": "[excited] Ooh, say it with me! {K}! [excited] Louder! {K}! [whisper] Wow, you're so good!",
+        "example": "[excited] Oh! What else is {k}? Look! {article} {name}! [excited] Yay! The {name} is {k}!",
+        "quiz": "[excited] Yay, game time! Oh-oh, which one is {k}? [whisper] Look very, very carefully...",
+        "answer": "[excited] Wow! The {name} is {k}! {praise}",
+        "review_q": "[excited] Ooh! What color is this? Shout it out!",
+        "review_a": "[excited] Yay! It's {k}! {praise}",
+        "chant": "[excited] Woo-hoo! Now let's sing all the colors together!",
+        "dance": "[excited] Whee! Dance break! Wiggle your arms! Stomp your feet! Clap, clap, clap! [whisper] You're doing so great!",
+        "outro": "[excited] Wow, wow, wow! You learned eight colors today: red, blue, yellow, green, purple, orange, pink and brown! "
+                 "[whisper] I'm so proud of you. Give yourself a big hug. [excited] Yay! See you next time! Bye bye!",
         "items": [
             {"key": "red", "label": "RED", "bg_hex": "E53935", "pic": "🍓", "phrase": "bright and warm",
              "examples": [_ex("🍎", "apple"), _ex("🚒", "fire truck"), _ex("🍓", "strawberry")]},
@@ -70,19 +77,19 @@ PACKS: List[Dict[str, Any]] = [
         "learning_objective": "Name eight animals and the sounds they make",
         "tags": ["animal sounds", "learn animals", "farm animals for kids", "toddler learning video",
                  "preschool learning", "educational videos for toddlers", "kindergarten"],
-        "intro": "Hello, hello, my little friends! I'm Lumi the owl! Today we're visiting lots of animal friends. "
-                 "We will learn their names, copy their silly sounds, and play guessing games. Are you ready? Let's go!",
-        "mystery": "Who is hiding? Guess the next animal! Get ready!",
-        "reveal": "Look! It's a {k}! The {k} {phrase}.",
-        "repeat": "Say it with me: {k}! One more time: {k}!",
+        "intro": "[excited] Wow! Hello, hello, my little friends! I'm Lumi the owl! [excited] Yay! Today we're visiting lots of animal friends! "
+                 "We will learn their names, copy their silly sounds, and play guessing games! [whisper] Are you ready? [excited] Let's go!",
+        "mystery": "[excited] Ooh! Who is hiding? [whisper] Shh... let's count together!",
+        "reveal": "[excited] Wow! It's a {k}! [excited] The {k} {phrase}!",
+        "repeat": "[excited] Ooh, say it with me! {K}! [excited] Louder! {K}! [whisper] Wow, you're so good!",
         "example": "{name}",
-        "quiz": "Game time! Which one is the {k}? Look carefully and guess!",
-        "answer": "Yes! That's the {k}! {praise}",
-        "review_q": "Who is this? Shout it out!",
-        "review_a": "It's the {k}! {praise}",
-        "chant": "Now let's say all our animal friends together!",
-        "dance": "Dance break! Flap your wings like a duck, stomp like an elephant, and hop like a bunny! You're doing so great!",
-        "outro": "Wow! You met so many animal friends today! I'm so proud of you! Give yourself a big hug. See you next time, bye bye!",
+        "quiz": "[excited] Yay, game time! Oh-oh, which one is the {k}? [whisper] Look very, very carefully...",
+        "answer": "[excited] Wow! That's the {k}! {praise}",
+        "review_q": "[excited] Ooh! Who is this? Shout it out!",
+        "review_a": "[excited] Yay! It's the {k}! {praise}",
+        "chant": "[excited] Woo-hoo! Now let's say all our animal friends together!",
+        "dance": "[excited] Whee! Dance break! Flap your wings like a duck! Stomp like an elephant! Hop like a bunny! [whisper] You're doing so great!",
+        "outro": "[excited] Wow, wow, wow! You met so many animal friends today! [whisper] I'm so proud of you. Give yourself a big hug. [excited] Yay! See you next time! Bye bye!",
         "items": [
             {"key": "cow", "label": "COW", "bg_hex": "6D4C41", "pic": "🐄", "phrase": "says moo, moo",
              "examples": [_ex("🐄", "The cow lives on the farm."), _ex("🥛", "The cow gives us milk."), _ex("🌾", "The cow loves to eat grass.")]},
@@ -124,20 +131,20 @@ def build_timeline(pack: Dict[str, Any], seed: int = 1, min_total: float = 0.0) 
 
     def seg(kind, text=None, fixed=None, sfx=None, chapter=None, **visual):
         segs.append({"kind": kind, "text": text, "fixed": fixed, "sfx": sfx or [], "chapter": chapter,
+                     "voice_parts": COUNT_WORDS if kind == "countdown" else [],
                      "visual": dict(kind=kind, **visual)})
 
     seg("title", pack["intro"], sfx=[(0.0, "chime")], chapter="Hello from Lumi!", title=pack["thumb_text"])
     for idx, it in enumerate(items):
         others = [o for o in items if o is not it]
         seg("mystery", pack["mystery"], sfx=[(0.0, "pop")], chapter=f"{it['label'].title()}", index=idx, total=len(items))
-        seg("countdown", None, fixed=3.3, sfx=[(0.0, "tick"), (1.1, "tick"), (2.2, "go")], index=idx, total=len(items),
-            style="mystery")
-        seg("reveal", _fmt(pack["reveal"], it), sfx=[(0.0, "tada")], item=idx)
+        seg("countdown", None, fixed=3.3, sfx=COUNT_SFX, index=idx, total=len(items), style="mystery")
+        seg("reveal", _fmt(pack["reveal"], it), sfx=[(0.0, REVEAL_SFX[idx % len(REVEAL_SFX)])], item=idx)
         seg("repeat", _fmt(pack["repeat"], it), item=idx, pad=2.0)  # kid repeats, music fills
         for ex in it["examples"]:
             text = (_fmt(pack["example"], it, name=ex["name"], article=_article(ex["name"]))
-                    if "{name}" not in pack["example"] or pack["family"] == "colors"
-                    else ex["name"])
+                    if pack["family"] == "colors"
+                    else f"[excited] {rng.choice(['Oh!', 'Look!', 'Wow!', 'Ooh!'])} {ex['name']}")
             seg("example", text, sfx=[(0.0, "pop")], item=idx, emoji=ex["e"],
                 caption=ex["name"] if pack["family"] == "colors" else it["label"].title())
         correct = rng.choice(it["examples"])
@@ -146,10 +153,10 @@ def build_timeline(pack: Dict[str, Any], seed: int = 1, min_total: float = 0.0) 
         rng.shuffle(choices)
         ci = choices.index(correct)
         seg("quiz", _fmt(pack["quiz"], it), item=idx, choices=[c["e"] for c in choices])
-        seg("countdown", None, fixed=3.3, sfx=[(0.0, "tick"), (1.1, "tick"), (2.2, "go")], item=idx,
-            choices=[c["e"] for c in choices], style="quiz")
+        seg("countdown", None, fixed=3.3, sfx=COUNT_SFX, item=idx, choices=[c["e"] for c in choices], style="quiz")
         name = correct["name"] if pack["family"] == "colors" else it["key"]
-        seg("answer", _fmt(pack["answer"], it, name=name, praise=praise()), sfx=[(0.0, "tada")], item=idx,
+        seg("answer", _fmt(pack["answer"], it, name=name, praise=praise()),
+            sfx=[(0.0, REVEAL_SFX[(idx + 3) % len(REVEAL_SFX)])], item=idx,
             choices=[c["e"] for c in choices], correct=ci)
         if idx == len(items) // 2 - 1:
             seg("dance", pack["dance"], sfx=[(0.0, "chime")], chapter="Dance break!", pad=6.0)
@@ -160,7 +167,7 @@ def build_timeline(pack: Dict[str, Any], seed: int = 1, min_total: float = 0.0) 
             it = items[idx]
             seg("review", pack["review_q"], sfx=[(0.0, "pop")], chapter=label if first else None, item=idx)
             first = False
-            seg("countdown", None, fixed=3.3, sfx=[(0.0, "tick"), (1.1, "tick"), (2.2, "go")], item=idx, style="review")
+            seg("countdown", None, fixed=3.3, sfx=COUNT_SFX, item=idx, style="review")
             seg("review_answer", _fmt(pack["review_a"], it, praise=praise()), sfx=[(0.0, "tada")], item=idx)
 
     order = list(range(len(items)))
@@ -169,7 +176,7 @@ def build_timeline(pack: Dict[str, Any], seed: int = 1, min_total: float = 0.0) 
     seg("chant_intro", pack["chant"], sfx=[(0.0, "chime")], chapter="Sing-along")
     for rep in range(2):
         for idx, it in enumerate(items):
-            seg("chant", f"{it['key'].capitalize()}!", item=idx, pad=0.9)
+            seg("chant", f"[excited] {it['key'].capitalize()}!", item=idx, pad=0.9, sfx=[(0.0, "pop")])
     seg("outro", pack["outro"], sfx=[(0.0, "tada")], chapter="Bye bye!", pad=3.0)
     return segs
 
@@ -191,8 +198,8 @@ def bonus_round(pack: Dict[str, Any], seed: int) -> List[Dict[str, Any]]:
         out.append({"kind": "quiz", "text": _fmt(pack["quiz"], it), "fixed": None, "sfx": [(0.0, "pop")],
                     "chapter": "Bonus round!" if n == 0 else None,
                     "visual": {"kind": "quiz", "item": idx, "choices": [c["e"] for c in choices]}})
-        out.append({"kind": "countdown", "text": None, "fixed": 3.3,
-                    "sfx": [(0.0, "tick"), (1.1, "tick"), (2.2, "go")], "chapter": None,
+        out.append({"kind": "countdown", "text": None, "fixed": 3.3, "voice_parts": COUNT_WORDS,
+                    "sfx": COUNT_SFX, "chapter": None,
                     "visual": {"kind": "countdown", "item": idx, "choices": [c["e"] for c in choices], "style": "quiz"}})
         out.append({"kind": "answer", "text": _fmt(pack["answer"], it, name=name, praise=rng.choice(PRAISE)),
                     "fixed": None, "sfx": [(0.0, "tada")], "chapter": None,

@@ -3,7 +3,7 @@
 Everything is synthesised from sine/noise with numpy, so there is no third-party music
 license to track. Deterministic per seed (same episode -> same music).
 
-Music: 112 BPM, C major, I-V-vi-IV progression, marimba-like lead on a pentatonic melody,
+Music: 124 BPM (upbeat), C major, I-V-vi-IV progression, marimba-like lead on a pentatonic melody,
 soft bass, light shaker and claps. Sections vary every 8 bars so a 10-minute bed does not
 sound like a 4-second loop.
 """
@@ -58,7 +58,7 @@ CHORDS = [[60, 64, 67], [55, 59, 62], [57, 60, 64], [53, 57, 60]]  # C  G  Am  F
 PENTA = [60, 62, 64, 67, 69, 72, 74, 76]
 
 
-def music_bed(seconds: float, seed: int = 7, bpm: float = 112.0) -> np.ndarray:
+def music_bed(seconds: float, seed: int = 7, bpm: float = 124.0) -> np.ndarray:
     rng = np.random.default_rng(seed)
     beat = 60.0 / bpm
     bar = 4 * beat
@@ -134,6 +134,25 @@ def sfx(kind: str) -> np.ndarray:
             s[j:j + len(n)] += n[: len(s) - j]
     elif kind == "pop":
         s = _tone(660, 0.15, 0.04, ((1, 1.0), (2, 0.3)))
+    elif kind == "tock":      # clock "tock" (lower, woodier than tick)
+        s = _tone(1100, 0.12, 0.025, ((1, 1.0), (2.7, 0.3))) * 0.6 + _noise_hit(0.12, 0.008, rng) * 0.15
+    elif kind == "boing":     # springy bounce when an object jumps in
+        n = int(0.5 * SR)
+        t = np.arange(n) / SR
+        f = 180 + 420 * (t / 0.5) + 60 * np.sin(2 * np.pi * 14 * t)
+        s = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t / 0.22)
+    elif kind == "quack":     # silly duck quack x2 (nasal saw + pitch drop)
+        s = np.zeros(int(0.55 * SR))
+        for start in (0.0, 0.27):
+            n = int(0.2 * SR)
+            t = np.arange(n) / SR
+            f = 820 - 900 * t
+            ph = np.cumsum(f) / SR
+            saw = 2 * (ph - np.floor(ph + 0.5))
+            nasal = saw * (0.6 + 0.4 * np.sin(2 * np.pi * 2600 * t))
+            q = nasal * np.minimum(1, t / 0.01) * np.exp(-t / 0.09)
+            j = int(start * SR)
+            s[j:j + n] += q
     else:
         raise ValueError(kind)
     s = s / (np.max(np.abs(s)) + 1e-9) * 0.5

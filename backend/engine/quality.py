@@ -1,4 +1,4 @@
-"""SKQS-2 — SmartKids Quality Standard, version 2 (see docs/QUALITY_STANDARD.md).
+"""SKQS-3 — SmartKids Quality Standard, version 3 (acting rule) (see docs/QUALITY_STANDARD.md).
 
 A video that fails ANY hard rule is never uploaded (job -> FAILED_QA). Every rule is measured on
 the final MP4 (ffprobe / ffmpeg filters) or on numbers recorded while rendering — nothing is assumed.
@@ -8,7 +8,7 @@ import re
 import subprocess
 from typing import Any, Dict, List
 
-STANDARD_ID = "SKQS-2"
+STANDARD_ID = "SKQS-3"
 
 RULES = {
     "width": 1920, "height": 1080, "fps": 60,
@@ -24,7 +24,10 @@ RULES = {
     "min_text_contrast": 4.5,                              # WCAG 2.x AA
     "min_text_px": 48,                                     # at 1080p
     "min_items": 6,
-    "wpm_min": 90, "wpm_max": 150,                         # calm storyteller pace for preschoolers
+    "wpm_min": 90, "wpm_max": 160,                         # energetic but understandable for preschoolers
+    "min_interjection_ratio": 0.8,                         # acting rule: >= 80 % of lines start with Wow/Oh/Yay...
+    "min_tagged_ratio": 0.95,                              # every line carries an emotion tag
+    "min_whisper_lines": 5,                                # dynamic range: not only shouting
     "approved_voices": ["af_heart", "ef_dora", "ff_siwis", "pf_dora"],
     "title_max": 100, "description_min": 400,
 }
@@ -123,6 +126,11 @@ def evaluate(m: Dict[str, Any], design: Dict[str, Any], meta: Dict[str, Any]) ->
     wpm = design.get("wpm", 0)
     need(R["wpm_min"] <= wpm <= R["wpm_max"], f"narration pace {wpm} wpm")
     need(design.get("voice") in R["approved_voices"], f"voice {design.get('voice')} not approved")
+    need(design.get("interjection_ratio", 0) >= R["min_interjection_ratio"],
+         f"monotony: only {design.get('interjection_ratio')} of lines have an interjection")
+    need(design.get("tagged_ratio", 0) >= R["min_tagged_ratio"], f"untagged lines: {design.get('tagged_ratio')}")
+    need(design.get("whisper_lines", 0) >= R["min_whisper_lines"], "no whisper contrast")
+    need(design.get("countdown_sfx") is True, "countdown without tick-tock/reveal effects")
 
     # metadata
     need(0 < len(meta.get("title", "")) <= R["title_max"], "title length")

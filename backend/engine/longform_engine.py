@@ -33,14 +33,28 @@ def _load48(path: str) -> np.ndarray:
     return data
 
 
+_PART_CACHE: Dict[str, str] = {}
+
+
+def _strip_tags(text: str) -> str:
+    import re
+    return re.sub(r"\[[a-z]+\]\s*", "", text)
+
+
 def narrate(segs: List[Dict[str, Any]], language: str, scratch: str, job_id: str, start: int = 0) -> None:
+    for s in segs:  # spoken "Three! Two! One!" clips, synthesised once and reused
+        for _, txt in s.get("voice_parts", []):
+            if txt not in _PART_CACHE:
+                wav = os.path.join(scratch, f"{job_id}_part_{abs(hash(txt)) % 10**6}.wav")
+                tts.synth(txt, language, wav)
+                _PART_CACHE[txt] = wav
     for i, s in enumerate(segs[start:], start=start):
         if s.get("voice_path") or not s["text"]:
             continue
         wav = os.path.join(scratch, f"{job_id}_n{i:03d}_{abs(hash(s['text'])) % 10**6}.wav")
         s["speech_sec"] = tts.synth(s["text"], language, wav)
         s["voice_path"] = wav
-        s["words"] = len(s["text"].split())
+        s["words"] = len(_strip_tags(s["text"]).split())
 
 
 def _durations(segs: List[Dict[str, Any]]) -> float:
@@ -71,14 +85,28 @@ def plan_audio(pack, segs, language, scratch, job_id, seed) -> float:
         narrate(segs, language, scratch, job_id)
         total = _durations(segs)
         logger.info("[Long-form] added bonus round %d -> %.1fs", extra, total)
+    n_items = len(pack["items"])
     while total > MAX_TARGET:
-        idx = [i for i, s in enumerate(segs) if s["kind"] == "review"]
-        if len(idx) <= 4:
+        chants = [i for i, x in enumerate(segs) if x["kind"] == "chant"]
+        reviews = [i for i, x in enumerate(segs) if x["kind"] == "review"]
+        examples = [i for i, x in enumerate(segs) if x["kind"] == "example"]
+        if len(chants) > n_items:                       # 1) sing the list once instead of twice
+            del segs[chants[-1]]
+            why = "second chant pass"
+        elif len(reviews) > 4:                          # 2) shorter review round (keep >= 4 questions)
+            del segs[reviews[-1]:reviews[-1] + 3]
+            why = "review question"
+        elif len(examples) > 2 * n_items:               # 3) 2 examples per item instead of 3
+            per = {}
+            for i in examples:
+                per.setdefault(segs[i]["visual"]["item"], []).append(i)
+            victim = max((v for v in per.values() if len(v) > 2), key=lambda v: v[-1])[-1]
+            del segs[victim]
+            why = "third example"
+        else:
             break
-        i = idx[-1]
-        del segs[i:i + 3]  # review question + countdown + answer
         total = _durations(segs)
-        logger.info("[Long-form] trimmed one review question -> %.1fs", total)
+        logger.info("[Long-form] trimmed %s -> %.1fs", why, total)
     logger.info("[Long-form] %d segments, %.1f s (%.2f min)", len(segs), total, total / 60)
     return total
 
@@ -93,6 +121,10 @@ def mix_audio(segs, total: float, scratch: str, out_wav: str, seed: int) -> Dict
             v = _load48(s["voice_path"])
             i = int((s["t0"] + VOICE_LEAD_IN) * SR)
             voice[i:i + len(v)] += v[: n - i]
+        for off, txt in s.get("voice_parts", []):
+            v = _load48(_PART_CACHE[txt])
+            i = int((s["t0"] + off) * SR)
+            voice[i:i + len(v)] += v[: n - i]
         for off, kind in s["sfx"]:
             if kind not in cache:
                 cache[kind] = audio_synth.sfx(kind).astype(np.float32)
@@ -102,14 +134,14 @@ def mix_audio(segs, total: float, scratch: str, out_wav: str, seed: int) -> Dict
     music = audio_synth.music_bed(total + 0.5, seed=seed).astype(np.float32)[:n]
     if len(music) < n:
         music = np.pad(music, ((0, n - len(music)), (0, 0)))
-    # sidechain ducking: music -10 dB while Lumi talks, smooth 150 ms attack/400 ms release
+    # sidechain ducking: music -70 % while Lumi talks, smooth 150 ms attack/400 ms release
     env = np.abs(voice).max(axis=1)
     hop = int(0.05 * SR)
     frames = env[: len(env) // hop * hop].reshape(-1, hop).max(axis=1)
     active = (frames > 0.02).astype(np.float32)
     k = np.ones(8) / 8
     active = np.clip(np.convolve(active, k, mode="same") * 2, 0, 1)
-    gain = 1.0 - 0.68 * np.repeat(active, hop)
+    gain = 1.0 - 0.70 * np.repeat(active, hop)   # music drops 70 % while Lumi speaks
     gain = np.pad(gain, (0, n - len(gain)), constant_values=1.0)
     mix = voice * 1.0 + fx * 0.45 + music * 0.55 * gain[:, None]
     mix /= max(1.0, float(np.max(np.abs(mix))) / 0.95)
@@ -158,7 +190,9 @@ def render(pack, segs, scratch: str, out_mp4: str, job_id: str) -> Dict[str, Any
             if fade_out and j == len(frames) - 1:
                 fx.append(f"fade=t=out:st={max(0, d - 0.3):.3f}:d=0.3")
             filt = ("[1:v]format=rgba[p];[2:v]format=rgba[l];"
-                    f"[0:v][p]overlay=x=(W-w)/2:y={fr['hero_y']}-h/2+12*sin(2*PI*t/1.8):eval=frame[a];"
+                    # pop-in: object drops in with a bounce during the first 0.45 s, then bobs gently
+                    f"[0:v][p]overlay=x=(W-w)/2:y={fr['hero_y']}-h/2+12*sin(2*PI*t/1.8)"
+                    "+if(lt(t\\,0.45)\\,-260*cos(PI*t/0.9)*exp(-t*4)\\,0):eval=frame[a];"
                     "[a][l]overlay=x=40:y=H-h-10+6*sin(2*PI*t/1.3+1):eval=frame"
                     + ("," + ",".join(fx) if fx else "") + ",format=yuv420p[v]")
             clip = os.path.join(scratch, f"{job_id}_c{i:03d}_{j}.mp4")

@@ -26,8 +26,15 @@ VOICES: Dict[str, Dict[str, str]] = {
     "FR": {"voice": "ff_siwis", "lang": "fr-fr", "license": "Apache-2.0 (Kokoro-82M)"},
     "PT": {"voice": "pf_dora", "lang": "pt-br", "license": "Apache-2.0 (Kokoro-82M)"},
 }
-SPEED = 0.80          # calm storyteller pace
-SENTENCE_GAP = {"!": 0.50, "?": 0.60, ".": 0.45, ":": 0.35}  # breathing pauses between sentences
+SPEED = 0.80          # default storyteller pace
+SENTENCE_GAP = {"!": 0.40, "?": 0.55, ".": 0.45, ":": 0.35}  # breathing pauses between sentences
+# Acting rule: emotion tags in the script -> delivery. Kokoro has no SSML, so emotion is carried by the
+# interjection words ("Wow!", "Yay!"), punctuation, tempo and level; whispers are slower and much softer.
+STYLES = {
+    "excited": {"speed": 0.93, "gain": 1.0, "gap": 0.30},
+    "calm": {"speed": 0.82, "gain": 0.85, "gap": 0.45},
+    "whisper": {"speed": 0.78, "gain": 0.40, "gap": 0.50},
+}
 SR = 24000
 
 _engine = None
@@ -53,18 +60,21 @@ def synth(text: str, language: str, out_wav: str, speed: Optional[float] = None)
         sf.write(out_wav, samples.astype(np.float32), SR)
         return dur
     import re
-    parts = [p for p in re.split(r"(?<=[.!?:])\s+", text.strip()) if p]
     chunks = []
     sr = SR
-    for part in parts:
-        audio, sr = _load().create(part, voice=cfg["voice"], speed=speed or SPEED, lang=cfg["lang"])
-        a = np.abs(audio)
-        idx = np.where(a > 0.01)[0]
-        if len(idx):
-            audio = audio[max(0, idx[0] - int(0.04 * sr)): idx[-1] + int(0.12 * sr)]
-        chunks.append(audio)
-        gap = SENTENCE_GAP.get(part[-1], 0.35)
-        chunks.append(np.zeros(int(gap * sr), dtype=audio.dtype))
+    # "[excited] Wow! It's red! [whisper] So pretty..." -> [("excited", "Wow! It's red!"), ("whisper", "So pretty...")]
+    tagged = re.findall(r"(?:\[([a-z]+)\]\s*)?([^\[]+)", text.strip())
+    for tag, body in tagged:
+        style = STYLES.get(tag or "calm", STYLES["calm"])
+        for part in [p for p in re.split(r"(?<=[.!?:])\s+", body.strip()) if p]:
+            audio, sr = _load().create(part, voice=cfg["voice"], speed=speed or style["speed"], lang=cfg["lang"])
+            a = np.abs(audio)
+            idx = np.where(a > 0.01)[0]
+            if len(idx):
+                audio = audio[max(0, idx[0] - int(0.04 * sr)): idx[-1] + int(0.12 * sr)]
+            chunks.append(audio * style["gain"])
+            gap = style["gap"] + (0.15 if part[-1] == "?" else 0.0)
+            chunks.append(np.zeros(int(gap * sr), dtype=audio.dtype))
     samples = np.concatenate(chunks[:-1]) if len(chunks) > 1 else chunks[0]
-    sf.write(out_wav, samples, sr)
+    sf.write(out_wav, samples.astype(np.float32), sr)
     return len(samples) / sr

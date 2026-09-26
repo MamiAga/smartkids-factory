@@ -399,12 +399,38 @@ class ProductionEngine:
         thumb = visuals.render_longform_thumbnail(pack, os.path.join(OUTPUT_DIR, f"{job_id}_thumbnail.jpg"))
         meta = longform_metadata(pack, longform_engine.chapters(segs))
         meta["made_for_kids"] = True
-        design = {"items": len(pack["items"]), "text_checks": rv["text_checks"], "pictures": rv["pictures"],
+        lines = [x["text"] for x in segs if x["text"] and x["kind"] != "chant"]  # chant = single sung words
+        from backend.engine.longform import INTERJECTIONS, COUNT_SFX
+        plain = [re.sub(r"\[[a-z]+\]\s*", "", t) for t in lines]
+        acting = {
+            "interjection_ratio": round(sum(1 for t in plain if t.startswith(INTERJECTIONS)) / max(1, len(plain)), 2),
+            "tagged_ratio": round(sum(1 for t in lines if t.lstrip().startswith("[")) / max(1, len(lines)), 2),
+            "whisper_lines": sum(1 for t in lines if "[whisper]" in t),
+            "countdown_sfx": all(x["sfx"] == COUNT_SFX and x.get("voice_parts") for x in segs if x["kind"] == "countdown"),
+        }
+        self._write_scene_json(segs, job_id)
+        design = {**acting, "items": len(pack["items"]), "text_checks": rv["text_checks"], "pictures": rv["pictures"],
                   "character_every_scene": True, "decorations": rv["decorations"], "music_bed": audio["music_bed"],
                   "countdowns": rv["countdowns"], "wpm": audio["wpm"], "words": audio["words"],
                   "voice": tts.VOICES[language]["voice"], "segments": len(segs)}
         logger.info("[Long-form] %s: %.1fs, %d words @ %.0f wpm", mp4, total, audio["words"], audio["wpm"])
         return {"mp4": mp4, "thumbnail": thumb, "design": design, "meta": meta}
+
+    @staticmethod
+    def _write_scene_json(segs, job_id):
+        """Audit export in the producer's scene template format (one entry per segment)."""
+        out = []
+        for i, x in enumerate(segs):
+            sfx = x["sfx"]
+            out.append({
+                "scene_id": i + 1, "kind": x["kind"], "start_sec": round(x["t0"], 2), "duration_sec": round(x["dur"], 2),
+                "background_music": "smartkids_bed_124bpm (ducked -70% under voice)",
+                "sfx_at_start": sfx[0][1] if sfx else None,
+                "sfx_timeline": [{"at": round(o, 2), "sfx": k} for o, k in sfx],
+                "text_to_speech": x["text"] or " ".join(t for _, t in x.get("voice_parts", [])),
+            })
+        with open(os.path.join(OUTPUT_DIR, f"{job_id}_scenes.json"), "w") as fh:
+            json.dump(out, fh, indent=1, ensure_ascii=False)
 
     # -------------------------------------------------------------- main flow
     def run_production(self, episode_id: str, language: str = "EN") -> Dict[str, Any]:
