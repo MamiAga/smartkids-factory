@@ -145,7 +145,8 @@ class QualityStandardTests(unittest.TestCase):
             "black_segments": [], "max_luma_step": 6.0, "max_flashes_per_sec": 1}
     DESIGN = {"items": 8, "text_checks": [{"text": "RED", "px": 170, "contrast": 4.7}], "pictures": [True] * 5,
               "character_every_scene": True, "decorations": True, "music_bed": True, "countdowns": 24,
-              "wpm": 128, "voice": "af_heart"}
+              "wpm": 128, "voice": "af_heart", "interjection_ratio": 1.0, "tagged_ratio": 1.0,
+              "whisper_lines": 20, "countdown_sfx": True}
 
     def meta(self):
         m = lf_meta(CATALOG[0], [{"t": 0, "title": "Hello"}])
@@ -163,7 +164,8 @@ class QualityStandardTests(unittest.TestCase):
                     {"true_peak_dbtp": 0.2}, {"duration": 300.0}, {"duration": 700.0}):
             with self.subTest(bad=bad):
                 self.assertFalse(evaluate(dict(self.GOOD, **bad), self.DESIGN, self.meta())["passed"])
-        for bad in ({"wpm": 175}, {"voice": "piper_robot"}, {"music_bed": False}, {"countdowns": 2},
+        for bad in ({"wpm": 175}, {"voice": "piper_robot"}, {"interjection_ratio": 0.3}, {"whisper_lines": 0},
+                    {"countdown_sfx": False}, {"music_bed": False}, {"countdowns": 2},
                     {"text_checks": [{"text": "X", "px": 40, "contrast": 3.0}]}):
             with self.subTest(bad=bad):
                 self.assertFalse(evaluate(self.GOOD, dict(self.DESIGN, **bad), self.meta())["passed"])
