@@ -149,7 +149,7 @@ def sfx(kind: str) -> np.ndarray:
             f = 820 - 900 * t
             ph = np.cumsum(f) / SR
             saw = 2 * (ph - np.floor(ph + 0.5))
-            nasal = saw * (0.6 + 0.4 * np.sin(2 * np.pi * 2600 * t))
+            nasal = np.convolve(saw * (0.6 + 0.4 * np.sin(2 * np.pi * 2600 * t)), np.ones(6) / 6, mode="same")  # soften edges
             q = nasal * np.minimum(1, t / 0.01) * np.exp(-t / 0.09)
             j = int(start * SR)
             s[j:j + n] += q

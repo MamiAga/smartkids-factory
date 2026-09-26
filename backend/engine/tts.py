@@ -37,6 +37,49 @@ STYLES = {
 }
 SR = 24000
 
+# Engine selection. "chatterbox" = Resemble AI Chatterbox (MIT) with an emotion-exaggeration control,
+# much more theatrical than Kokoro but heavier (PyTorch). Chosen per run via SMARTKIDS_TTS_ENGINE.
+ENGINE = os.getenv("SMARTKIDS_TTS_ENGINE", "kokoro")
+_cb = None  # persistent worker process (separate venv, see backend/tools/chatterbox_worker.py)
+
+
+def voice_id() -> str:
+    return "chatterbox_default" if ENGINE == "chatterbox" else "af_heart"
+
+
+def _cb_worker():
+    global _cb
+    if _cb is None or _cb.poll() is not None:
+        import json
+        import subprocess
+        py = os.getenv("CHATTERBOX_PY", "python3")
+        worker = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools", "chatterbox_worker.py")
+        _cb = subprocess.Popen([py, worker], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, bufsize=1)
+        while True:  # skip library chatter until the worker says it is ready
+            line = _cb.stdout.readline()
+            if not line:
+                raise RuntimeError("chatterbox worker died during start-up")
+            if line.startswith("{") and json.loads(line).get("ready"):
+                break
+    return _cb
+
+
+def _synth_chatterbox(text: str, out_wav: str) -> float:
+    import json
+    w = _cb_worker()
+    w.stdin.write(json.dumps({"text": text, "out": os.path.abspath(out_wav)}) + "\n")
+    w.stdin.flush()
+    while True:
+        line = w.stdout.readline()
+        if not line:
+            raise RuntimeError("chatterbox worker died")
+        if line.startswith("{"):
+            r = json.loads(line)
+            if not r.get("ok"):
+                raise RuntimeError(f"chatterbox: {r.get('error')}")
+            return float(r["dur"])
+
+
 _engine = None
 
 
@@ -59,6 +102,8 @@ def synth(text: str, language: str, out_wav: str, speed: Optional[float] = None)
         samples = 0.05 * np.sin(2 * np.pi * 220 * np.arange(int(dur * SR)) / SR)
         sf.write(out_wav, samples.astype(np.float32), SR)
         return dur
+    if ENGINE == "chatterbox":
+        return _synth_chatterbox(text, out_wav)
     import re
     chunks = []
     sr = SR

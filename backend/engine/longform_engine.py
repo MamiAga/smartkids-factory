@@ -157,7 +157,8 @@ def mix_audio(segs, total: float, scratch: str, out_wav: str, seed: int) -> Dict
           f"measured_I={st['input_i']}:measured_TP={st['input_tp']}:measured_LRA={st['input_lra']}:"
           f"measured_thresh={st['input_thresh']}:offset={st['target_offset']},"
           # brick-wall safety limiter at -3 dBFS: AAC encoding can add ~1-2 dB of inter-sample peaks
-          "alimiter=limit=0.708:attack=5:release=50:level=false,aresample=48000",
+          # 4x oversampled limiter ~ true-peak limiter; AAC can still add a little, mux() re-checks
+          "aresample=192000,alimiter=limit=0.708:attack=2:release=60:level=false,aresample=48000",
           "-c:a", "pcm_s16le", "-ar", "48000", "-ac", "2", out_wav])
     speech_sec = sum(s.get("speech_sec", 0) for s in segs)
     words = sum(s.get("words", 0) for s in segs)
@@ -215,10 +216,28 @@ def render(pack, segs, scratch: str, out_mp4: str, job_id: str) -> Dict[str, Any
             "decorations": True}
 
 
+def _true_peak(path: str) -> float:
+    import re
+    out = subprocess.run(["ffmpeg", "-nostats", "-i", path, "-vn", "-af", "ebur128=peak=true", "-f", "null", "-"],
+                         stdout=subprocess.PIPE, stderr=subprocess.PIPE).stderr.decode("utf-8", "replace")
+    m = re.findall(r"Peak:\s+(-?[\d.]+) dBFS", out[out.rfind("Summary:"):])
+    return float(m[-1]) if m else 0.0
+
+
 def mux(video_only: str, audio_wav: str, out_mp4: str) -> None:
-    _run(["ffmpeg", "-y", "-loglevel", "error", "-i", video_only, "-i", audio_wav, "-map", "0:v", "-map", "1:a",
-          "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", "-shortest",
-          "-movflags", "+faststart", out_mp4])
+    """Mux + AAC encode, then verify true peak on the ENCODED file. If AAC overshoots, tighten an
+    oversampled peak limiter (only peaks are touched, so loudness stays at -16 LUFS) and re-encode."""
+    for limit_db in (-3.0, -4.5, -6.0, -8.0):
+        lim = 10 ** (limit_db / 20)
+        _run(["ffmpeg", "-y", "-loglevel", "error", "-i", video_only, "-i", audio_wav, "-map", "0:v", "-map", "1:a",
+              "-c:v", "copy",
+              "-af", f"aresample=192000,alimiter=limit={lim:.3f}:attack=1:release=50:level=false,aresample=48000",
+              "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2",
+              "-shortest", "-movflags", "+faststart", out_mp4])
+        tp = _true_peak(out_mp4)
+        logger.info("[Mux] limiter %.1f dBFS -> encoded true peak %.2f dBTP", limit_db, tp)
+        if tp <= -1.3:
+            return
 
 
 def chapters(segs) -> List[Dict[str, Any]]:

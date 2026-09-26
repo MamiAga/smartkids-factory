@@ -412,7 +412,7 @@ class ProductionEngine:
         design = {**acting, "items": len(pack["items"]), "text_checks": rv["text_checks"], "pictures": rv["pictures"],
                   "character_every_scene": True, "decorations": rv["decorations"], "music_bed": audio["music_bed"],
                   "countdowns": rv["countdowns"], "wpm": audio["wpm"], "words": audio["words"],
-                  "voice": tts.VOICES[language]["voice"], "segments": len(segs)}
+                  "voice": tts.voice_id(), "segments": len(segs)}
         logger.info("[Long-form] %s: %.1fs, %d words @ %.0f wpm", mp4, total, audio["words"], audio["wpm"])
         return {"mp4": mp4, "thumbnail": thumb, "design": design, "meta": meta}
 
