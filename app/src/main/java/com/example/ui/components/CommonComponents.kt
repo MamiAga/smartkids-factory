@@ -150,9 +150,9 @@ fun GatingBlockerBanner(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "XTTS-v2 lisansı ticari olmayan CPML olduğu için YouTube gelir modeliyle uyumsuz olup kesin olarak reddedilmiştir. " +
-                            "Piper TTS modelleri arasından 10 dil için ($unapprovedCount dil eksik veya onay bekliyor) ticari lisansı (MIT/CC-BY/Public Domain) tam kanıtlanmadan " +
-                            "üretim boru hattı başlatılamaz (commercial_use = false -> KİLİTLİ).",
+                    text = "Ticari olmayan lisanslı hiçbir ses modeli (XTTS-v2 CPML, Piper NC modelleri) kullanılmaz. " +
+                            "10 dilin tamamı Chatterbox (MIT) ile seslendirilir; anlatıcı tınısı fabrikanın Kokoro-82M (Apache-2.0) ile ürettiği referans sestir. " +
+                            "Onaysız dil sayısı: $unapprovedCount (commercial_use = false -> KİLİTLİ).",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurface,
                     lineHeight = 16.sp

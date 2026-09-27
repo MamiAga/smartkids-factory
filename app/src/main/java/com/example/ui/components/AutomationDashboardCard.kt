@@ -66,15 +66,15 @@ val STANDARD_60_PIPELINE_STEPS: List<PipelineStageStep> = listOf(
     PipelineStageStep(19, "Linguistik Güvenlik ve Uygunluk Taraması", "Kalite", 2),
     PipelineStageStep(20, "Son Metin Master Onayı", "Onay", 2),
 
-    // 21-30: Piper Nöral TTS Sentezi (10 Adım)
-    PipelineStageStep(21, "Piper ONNX Modeli Belleğe Yükleme", "TTS", 4),
-    PipelineStageStep(22, "CC-BY-4.0 Ticari Ses Lisans Doğrulama", "Hukuk", 2),
-    PipelineStageStep(23, "Sahne 1 Fonetik Ses Sentezi (Red)", "TTS", 4),
-    PipelineStageStep(24, "Sahne 2 Fonetik Ses Sentezi (Blue)", "TTS", 4),
-    PipelineStageStep(25, "Sahne 3 Fonetik Ses Sentezi (Yellow)", "TTS", 4),
-    PipelineStageStep(26, "Sahne 4 Fonetik Ses Sentezi (Green)", "TTS", 4),
-    PipelineStageStep(27, "Sahne 5 Fonetik Ses Sentezi (Purple)", "TTS", 4),
-    PipelineStageStep(28, "2.0s Bilişsel Sessizlik Enjeksiyonu", "Ses Miksi", 3),
+    // 21-30: Paralel Chatterbox seslendirme + ses kalite kalkanı (10 Adım)
+    PipelineStageStep(21, "Chatterbox Modeli Paralel Sunuculara Yükleme", "TTS", 4),
+    PipelineStageStep(22, "MIT / Apache-2.0 Ses Lisans Doğrulama", "Hukuk", 2),
+    PipelineStageStep(23, "Paralel Seslendirme (Satır Payları)", "TTS", 4),
+    PipelineStageStep(24, "Whisper Metin Doğrulaması", "Ses QA", 4),
+    PipelineStageStep(25, "Paralel Seslendirme Devam Ediyor", "TTS", 4),
+    PipelineStageStep(26, "Robot Ses / Tını Kayması Kontrolü", "Ses QA", 4),
+    PipelineStageStep(27, "Bozuk Çekimlerin Yeniden Seslendirilmesi", "TTS", 4),
+    PipelineStageStep(28, "Müzik Yatağı %70 Ducking + Efektler", "Ses Miksi", 3),
     PipelineStageStep(29, "EBU R128 (-16 LUFS) Ses Normalizasyonu", "Ses Miksi", 4),
     PipelineStageStep(30, "Master WAV Dosya Bütünlük Doğrulaması", "Ses QA", 3),
 
@@ -116,43 +116,61 @@ val STANDARD_60_PIPELINE_STEPS: List<PipelineStageStep> = listOf(
 )
 
 /**
- * Mevcut işin durumuna ve aşamasına göre kaçıncı adımda olduğumuzu hesaplar (1..60).
+ * Backend (production_runner.py) state names are the canonical ones. Old app-only names are kept
+ * so rows written by older versions still render.
+ */
+object CloudJobStates {
+    val PRODUCED = setOf("UPLOADED_PRIVATE", "PROCESSED_PRIVATE", "COMPLETED", "PUBLISHED", "PROCESSED", "DUB_READY_FOR_STUDIO")
+    val FAILED = setOf("FAILED_QA", "FAILED_UPLOAD", "QUARANTINED", "QUOTA_PAUSED", "QA_FAILED")
+    val TERMINAL = PRODUCED + FAILED
+    const val STALE_AFTER_MS = 3 * 60 * 60 * 1000L // narration (120 min) + produce (180 min) runner timeouts
+
+    /** A job is "running" only if it is non-terminal AND the cloud touched it recently. */
+    fun isRunning(job: PipelineJobEntity?, now: Long = System.currentTimeMillis()): Boolean =
+        job != null && job.status !in TERMINAL && now - job.updatedAt < STALE_AFTER_MS
+}
+
+/**
+ * Mevcut işin bulut durumuna göre kaçıncı adımda olduğumuzu hesaplar (1..60).
  */
 fun calculatePipelineProgress(
     isEnabled: Boolean,
     activeJob: PipelineJobEntity?
 ): Triple<Int, PipelineStageStep, String> {
-    if (!isEnabled) {
-        return Triple(0, PipelineStageStep(0, "Fabrika Duraklatıldı (PAUSED)", "Duraklatıldı", 0), "Durduruldu")
+    if (!CloudJobStates.isRunning(activeJob)) {
+        val label = if (isEnabled) "Aktif Bulut İşi Yok (Beklemede)" else "Fabrika Kapalı"
+        return Triple(0, PipelineStageStep(0, label, "Boşta", 0), "—")
     }
 
-    if (activeJob == null || activeJob.status in listOf("PUBLISHED", "COMPLETED", "PROCESSED", "PROCESSED_PRIVATE", "QA_FAILED", "QUARANTINED")) {
-        return Triple(0, PipelineStageStep(0, "Aktif Bulut İşi Yok (Beklemede)", "Boşta", 0), "—")
-    }
-
-    val stepIndex = when (activeJob.status) {
-        "PLANNED" -> 5
-        "SCRIPTED" -> 15
-        "LOCALIZED" -> 20
-        "TTS_READY" -> 30
-        "RENDERED" -> 40
-        "QA_PASSED" -> 50
+    val stepIndex = when (activeJob!!.status) {
+        "CREATED", "PLANNED", "QUEUED" -> 3
+        "VALIDATING", "SCRIPTED", "LOCALIZED" -> 12
+        "TTS_SYNTHESIS", "TTS_READY" -> 25
+        "RENDERING", "RENDERED" -> 36
+        "QA_TECHNICAL" -> 42
+        "QA_PEDAGOGICAL", "QA_PASSED" -> 48
         "UPLOADING" -> 54
         "UPLOADED" -> 56
         "PROCESSING" -> 58
-        else -> 5
+        else -> 3
     }
 
-    val currentStep = STANDARD_60_PIPELINE_STEPS.getOrElse(stepIndex - 1) { STANDARD_60_PIPELINE_STEPS.last() }
+    val baseStep = STANDARD_60_PIPELINE_STEPS.getOrElse(stepIndex - 1) { STANDARD_60_PIPELINE_STEPS.last() }
+    // the cloud writes what it is doing right now, e.g. "narration runner 3/8: 9/13 lines"
+    val currentStep = if (activeJob.stageDetail.isNotBlank())
+        baseStep.copy(stageName = "${baseStep.stageName} — ${activeJob.stageDetail}") else baseStep
 
-    val remainingSteps = STANDARD_60_PIPELINE_STEPS.filter { it.stepIndex > stepIndex }
-    val remainingSeconds = remainingSteps.sumOf { it.estimatedDurationSeconds }
-    val etaString = when {
-        stepIndex >= 60 -> "Yayınlandı"
-        remainingSeconds <= 30 -> "< 30 saniye"
-        remainingSeconds < 60 -> "~${remainingSeconds} saniye"
-        else -> "~${(remainingSeconds + 59) / 60} dakika"
+    // Phase-based estimate from measured runs (parallel narration ~20 min, render ~15 min, QA ~3 min,
+    // upload + YouTube processing ~5 min). Clearly labelled as an estimate.
+    val remainingMinutes = when (activeJob.status) {
+        "CREATED", "PLANNED", "QUEUED", "VALIDATING", "TTS_SYNTHESIS" -> 45
+        "RENDERING" -> 22
+        "QA_TECHNICAL", "QA_PEDAGOGICAL" -> 8
+        "UPLOADING" -> 5
+        "UPLOADED", "PROCESSING" -> 3
+        else -> 45
     }
+    val etaString = if (stepIndex >= 60) "Yayınlandı" else "~$remainingMinutes dakika (tahmini)"
 
     return Triple(stepIndex, currentStep, etaString)
 }
@@ -177,11 +195,12 @@ fun AutomationDashboardCard(
     )
     val containerBgColor = if (isEnabled) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
 
-    val (currentStepIndex, currentStage, etaTime) = remember(isEnabled, activeJob?.status) {
+    val (currentStepIndex, currentStage, etaTime) = remember(isEnabled, activeJob?.status, activeJob?.updatedAt) {
         calculatePipelineProgress(isEnabled, activeJob)
     }
 
-    val hasActiveRunningJob = isEnabled && activeJob != null && activeJob.status !in listOf("PUBLISHED", "COMPLETED", "PROCESSED", "PROCESSED_PRIVATE", "QA_FAILED", "QUARANTINED")
+    // A job keeps running after STOP until its next checkpoint, so do not hide it just because enabled=false.
+    val hasActiveRunningJob = CloudJobStates.isRunning(activeJob)
     val progressFraction = if (hasActiveRunningJob) (currentStepIndex / 60f).coerceIn(0f, 1f) else 0f
 
     // Nabız / Çalışma animasyonu
@@ -422,6 +441,8 @@ fun AutomationDashboardCard(
                     when {
                         diffSeconds < 60 -> "Az önce (${timeFormat.format(Date(heartbeatMillis))})"
                         diffSeconds < 3600 -> "${diffSeconds / 60} dk önce (${timeFormat.format(Date(heartbeatMillis))})"
+                        // gate job writes a heartbeat every hour; > 2 h means the cron is not running
+                        diffSeconds > 7200 -> "⚠️ ${fullFormat.format(Date(heartbeatMillis))} — runner 2 saattir sessiz (GitHub cron kapalı olabilir)"
                         else -> fullFormat.format(Date(heartbeatMillis))
                     }
                 } else {
