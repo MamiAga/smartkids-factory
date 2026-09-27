@@ -51,7 +51,7 @@ jobs:
       languages: ${{ inputs.languages }}
       mode: ${{ inputs.mode }}
       narrator: ${{ inputs.narrator == 'alternate' && '' || inputs.narrator }}
-      shards: ${{ inputs.shards }}
+      shards: ${{ fromJSON(format('{0}', inputs.shards)) }}
       dry_run: ${{ inputs.dry_run }}
       publish: ${{ inputs.publish }}
     secrets: inherit
