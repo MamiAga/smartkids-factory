@@ -161,7 +161,13 @@ fun MainApp(mainViewModel: MainViewModel = viewModel()) {
                     onQuickDispatch = { epId, lang ->
                         mainViewModel.dispatchProductionWorkflow(epId, lang)
                     },
-                    onStepJob = null // job stages are driven by the cloud runner only
+                    onStepJob = null, // job stages are driven by the cloud runner only
+                    onSetDistributionMode = { mainViewModel.setDistributionMode(it) },
+                    onSetNarratorMode = { mainViewModel.setNarratorMode(it) },
+                    onSetShards = { mainViewModel.setTtsShards(it) },
+                    onTestDispatch = { ep, langs, mode, narrator, dry ->
+                        mainViewModel.dispatchTestProduction(ep, langs, mode, narrator, dry)
+                    }
                 )
                 AppTab.VOICE_REGISTRY -> VoiceRegistryScreen(
                     voices = voices,
