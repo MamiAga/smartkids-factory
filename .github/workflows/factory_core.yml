@@ -1,0 +1,216 @@
+name: SmartKids factory core (plan -> parallel narration -> produce)
+
+# Reusable pipeline called by smartkids_factory.yml (autonomous / Android START) and
+# production_pipeline.yml (manual test runs). 0 TL: GitHub-hosted runners are free for public repos.
+#
+#   plan      decides what to make (gate, channels, idempotency) and splits the narration
+#   narrate   N runners in parallel, each narrates 1/N of the lines of one language (Chatterbox + guard)
+#   produce   one runner per video: collects all narration, renders, SKQS-4 quality gate, YouTube
+
+on:
+  workflow_call:
+    inputs:
+      run_now: {type: boolean, default: false}
+      force: {type: boolean, default: false}
+      episode: {type: string, default: ''}
+      languages: {type: string, default: ''}
+      mode: {type: string, default: ''}
+      narrator: {type: string, default: ''}
+      shards: {type: number, default: 0}
+      dry_run: {type: boolean, default: false}
+      publish: {type: string, default: ''}
+
+env:
+  ALLOW_PAID_SERVICES: 'false'
+  SMARTKIDS_TTS_CACHE: ${{ github.workspace }}/backend/models/tts_cache
+  PYTHONUNBUFFERED: '1'
+
+jobs:
+  plan:
+    name: Plan (gate + split narration)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    outputs:
+      should_run: ${{ steps.plan.outputs.should_run }}
+      mode: ${{ steps.plan.outputs.mode }}
+      tts_matrix: ${{ steps.plan.outputs.tts_matrix }}
+      produce_matrix: ${{ steps.plan.outputs.produce_matrix }}
+      reason: ${{ steps.plan.outputs.reason }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 1}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - name: Unit tests
+        run: python3 -m unittest discover -s backend/tests
+      - name: Plan
+        id: plan
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_REFRESH_TOKEN_EN: ${{ secrets.YOUTUBE_REFRESH_TOKEN_EN }}
+          YOUTUBE_REFRESH_TOKEN_ES: ${{ secrets.YOUTUBE_REFRESH_TOKEN_ES }}
+          YOUTUBE_REFRESH_TOKEN_PT: ${{ secrets.YOUTUBE_REFRESH_TOKEN_PT }}
+          YOUTUBE_REFRESH_TOKEN_FR: ${{ secrets.YOUTUBE_REFRESH_TOKEN_FR }}
+          YOUTUBE_REFRESH_TOKEN_DE: ${{ secrets.YOUTUBE_REFRESH_TOKEN_DE }}
+          YOUTUBE_REFRESH_TOKEN_IT: ${{ secrets.YOUTUBE_REFRESH_TOKEN_IT }}
+          YOUTUBE_REFRESH_TOKEN_TR: ${{ secrets.YOUTUBE_REFRESH_TOKEN_TR }}
+          YOUTUBE_REFRESH_TOKEN_RU: ${{ secrets.YOUTUBE_REFRESH_TOKEN_RU }}
+          YOUTUBE_REFRESH_TOKEN_AR: ${{ secrets.YOUTUBE_REFRESH_TOKEN_AR }}
+          YOUTUBE_REFRESH_TOKEN_HI: ${{ secrets.YOUTUBE_REFRESH_TOKEN_HI }}
+        run: |
+          FLAGS=""
+          [ "${{ inputs.run_now }}" = "true" ] && FLAGS="$FLAGS --run-now"
+          [ "${{ inputs.force }}" = "true" ] && FLAGS="$FLAGS --force"
+          [ "${{ inputs.dry_run }}" = "true" ] && FLAGS="$FLAGS --dry-run"
+          python3 backend/engine/factory_plan.py $FLAGS --episode "${{ inputs.episode }}" \
+            --languages "${{ inputs.languages }}" --mode "${{ inputs.mode }}" \
+            --narrator "${{ inputs.narrator }}" --shards "${{ inputs.shards }}"
+
+  narrate:
+    name: Narrate ${{ matrix.language }} ${{ matrix.shard }}/${{ matrix.of }}
+    needs: plan
+    if: needs.plan.outputs.should_run == 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix: ${{ fromJSON(needs.plan.outputs.tts_matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 1}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - name: Install FFmpeg + Kokoro (reference voice)
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          pip install -q numpy soundfile kokoro-onnx==0.6.1
+      - name: Install Chatterbox + Whisper (own venv, numpy<2)
+        run: |
+          python3 -m venv /tmp/cbenv
+          /tmp/cbenv/bin/pip install -q --upgrade pip
+          /tmp/cbenv/bin/pip install -q chatterbox-tts==0.1.7 faster-whisper
+      - name: Model cache (Chatterbox + Whisper weights)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-${{ matrix.language == 'EN' && 'en' || 'mtl' }}-cb017-v1
+      - name: Restore narration cache
+        uses: actions/cache/restore@v4
+        with:
+          path: backend/models/tts_cache
+          key: tts-v3-${{ matrix.language }}-${{ matrix.narrator }}-${{ github.run_id }}
+          restore-keys: |
+            tts-v3-${{ matrix.language }}-${{ matrix.narrator }}-
+      - name: Kokoro model
+        run: python3 backend/tools/download_models.py --kokoro
+      - name: Narrate my share of the lines
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          CHATTERBOX_PY: /tmp/cbenv/bin/python
+          SMARTKIDS_TTS_ENGINE: chatterbox
+        run: |
+          FORCE=""
+          [ "${{ inputs.force }}" = "true" ] && FORCE="--force"
+          python3 backend/tools/tts_shard.py --episode "${{ matrix.episode }}" --language "${{ matrix.language }}" \
+            --narrator "${{ matrix.narrator }}" --shard ${{ matrix.shard }} --of ${{ matrix.of }} --out /tmp/tts_shard_out $FORCE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tts-${{ matrix.episode }}-${{ matrix.language }}-${{ matrix.shard }}
+          path: /tmp/tts_shard_out
+          if-no-files-found: ignore
+          retention-days: 3
+
+  produce:
+    name: Produce ${{ matrix.episode }} [${{ matrix.languages }}]
+    needs: [plan, narrate]
+    if: always() && needs.plan.outputs.should_run == 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.produce_matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 1}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - name: Install FFmpeg, fonts (Latin/Cyrillic/Arabic/Devanagari + emoji), Pillow, Kokoro
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core fonts-noto-core fonts-noto-color-emoji libfribidi0 libharfbuzz0b
+          pip install -q pillow==12.* numpy soundfile kokoro-onnx==0.6.1
+          python3 -c "from PIL import features; assert features.check('raqm'), 'Pillow without raqm: Arabic/Hindi text would be broken'"
+      - name: Install Chatterbox (only used if a narration runner failed)
+        run: |
+          python3 -m venv /tmp/cbenv
+          /tmp/cbenv/bin/pip install -q --upgrade pip
+          /tmp/cbenv/bin/pip install -q chatterbox-tts==0.1.7 faster-whisper
+      - name: Model cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-${{ matrix.primary == 'EN' && 'en' || 'mtl' }}-cb017-v1
+      - name: Restore narration cache
+        uses: actions/cache/restore@v4
+        with:
+          path: backend/models/tts_cache
+          key: tts-v3-${{ matrix.primary }}-${{ matrix.narrator }}-${{ github.run_id }}
+          restore-keys: |
+            tts-v3-${{ matrix.primary }}-${{ matrix.narrator }}-
+      - name: Collect narration from the parallel runners
+        uses: actions/download-artifact@v4
+        with:
+          pattern: tts-${{ matrix.episode }}-*
+          path: backend/models/tts_cache
+          merge-multiple: true
+      - name: Kokoro model
+        run: python3 backend/tools/download_models.py --kokoro
+      - name: Produce
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN_EN: ${{ secrets.YOUTUBE_REFRESH_TOKEN_EN }}
+          YOUTUBE_REFRESH_TOKEN_ES: ${{ secrets.YOUTUBE_REFRESH_TOKEN_ES }}
+          YOUTUBE_REFRESH_TOKEN_PT: ${{ secrets.YOUTUBE_REFRESH_TOKEN_PT }}
+          YOUTUBE_REFRESH_TOKEN_FR: ${{ secrets.YOUTUBE_REFRESH_TOKEN_FR }}
+          YOUTUBE_REFRESH_TOKEN_DE: ${{ secrets.YOUTUBE_REFRESH_TOKEN_DE }}
+          YOUTUBE_REFRESH_TOKEN_IT: ${{ secrets.YOUTUBE_REFRESH_TOKEN_IT }}
+          YOUTUBE_REFRESH_TOKEN_TR: ${{ secrets.YOUTUBE_REFRESH_TOKEN_TR }}
+          YOUTUBE_REFRESH_TOKEN_RU: ${{ secrets.YOUTUBE_REFRESH_TOKEN_RU }}
+          YOUTUBE_REFRESH_TOKEN_AR: ${{ secrets.YOUTUBE_REFRESH_TOKEN_AR }}
+          YOUTUBE_REFRESH_TOKEN_HI: ${{ secrets.YOUTUBE_REFRESH_TOKEN_HI }}
+          CHATTERBOX_PY: /tmp/cbenv/bin/python
+          SMARTKIDS_TTS_ENGINE: chatterbox
+        run: |
+          FLAGS="--strict-supabase"
+          [ "${{ inputs.dry_run }}" = "true" ] && FLAGS="--dry-run"
+          [ "${{ inputs.force }}" != "true" ] && FLAGS="$FLAGS --respect-stop"
+          [ -n "${{ inputs.publish }}" ] && FLAGS="$FLAGS --publish ${{ inputs.publish }}"
+          python3 backend/engine/production_runner.py --episode "${{ matrix.episode }}" \
+            --languages "${{ matrix.languages }}" --narrator "${{ matrix.narrator }}" \
+            --mode "${{ needs.plan.outputs.mode }}" $FLAGS
+      - name: Save narration cache (also after a failed run)
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: backend/models/tts_cache
+          key: tts-v3-${{ matrix.primary }}-${{ matrix.narrator }}-${{ github.run_id }}
+      - name: Upload video + reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-${{ matrix.job_id }}
+          path: |
+            /tmp/smartkids_output/*.json
+            /tmp/smartkids_output/*.mp4
+            /tmp/smartkids_output/*.m4a
+            /tmp/smartkids_output/*.jpg
+          if-no-files-found: ignore
+          retention-days: 7

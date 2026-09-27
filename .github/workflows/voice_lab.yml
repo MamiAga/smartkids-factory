@@ -1,0 +1,40 @@
+name: Voice Lab (calibrate the robot-voice guard)
+
+# Measures the acoustic guard (timbre drift / dip, flat robotic pitch) on:
+#   Chatterbox takes (good), the same takes time-stretched with Rubber Band (v2 behaviour) and
+#   Kokoro lines (v2 fallback). No upload, no Supabase, 0 TL. Result: artifact voice_lab.json + mp3s.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  lab:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - name: Install
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          pip install -q numpy soundfile kokoro-onnx==0.6.1
+          python3 -m venv /tmp/cbenv
+          /tmp/cbenv/bin/pip install -q --upgrade pip
+          /tmp/cbenv/bin/pip install -q chatterbox-tts==0.1.7 faster-whisper
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-lab-cb017-v1
+      - name: Prepare references + Kokoro lines
+        run: |
+          python3 backend/tools/download_models.py --kokoro
+          python3 backend/tools/voice_lab.py prepare
+      - name: Measure
+        run: /tmp/cbenv/bin/python backend/tools/voice_lab.py measure
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: voice-lab-${{ github.run_id }}
+          path: /tmp/smartkids_output/
+          retention-days: 14

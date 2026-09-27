@@ -1,9 +1,9 @@
-name: SmartKids Cloud Autonomous Factory (ARM64 Ubuntu 24.04)
+name: SmartKids Cloud Autonomous Factory
 
 # ONE production entry point for both paths:
-#   * hourly cron  -> gate decides (enabled? schedule_time reached? daily target left?)
-#   * Android START -> workflow_dispatch with run_now=true (skips only the schedule_time wait)
-# The cheap "gate" job runs every hour; the heavy ARM64 "produce" job only when there is work.
+#   * hourly cron   -> plan decides (enabled? schedule_time reached? daily target left? channel connected?)
+#   * Android START -> workflow_dispatch run_now=true (skips only the schedule_time wait)
+# Narration runs on several runners at the same time (factory_core.yml), then one runner per video renders.
 
 on:
   schedule:
@@ -23,124 +23,10 @@ concurrency:
   group: smartkids-cloud-factory
   cancel-in-progress: false
 
-env:
-  ALLOW_PAID_SERVICES: 'false'
-
 jobs:
-  gate:
-    name: Gate + heartbeat
-    runs-on: ubuntu-24.04-arm
-    timeout-minutes: 5
-    outputs:
-      should_run: ${{ steps.plan.outputs.should_run }}
-      languages: ${{ steps.plan.outputs.languages }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 1
-      - uses: actions/setup-python@v7
-        with:
-          python-version: '3.11'
-      - name: Decide
-        id: plan
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
-        run: |
-          FLAGS="--gate-only"
-          [ "${{ inputs.run_now }}" = "true" ] && FLAGS="$FLAGS --run-now"
-          [ "${{ inputs.force_run }}" = "true" ] && FLAGS="$FLAGS --force"
-          python3 backend/engine/factory_orchestrator.py $FLAGS
-
-  produce:
-    name: Cloud Production Factory (ubuntu-24.04-arm)
-    needs: gate
-    if: needs.gate.outputs.should_run == 'true'
-    runs-on: ubuntu-24.04-arm
-    timeout-minutes: 330
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 1
-
-      - name: Runner diagnostics
-        run: |
-          echo "arch=$(uname -m) cores=$(nproc)"; free -h; df -h /
-          [ "$(uname -m)" = "aarch64" ] || echo "::warning::expected aarch64, got $(uname -m)"
-
-      - uses: actions/setup-python@v7
-        with:
-          python-version: '3.11'
-
-      - name: Install FFmpeg, fonts, Pillow, Kokoro TTS
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core fonts-noto-color-emoji
-          pip install -q pillow==12.* numpy soundfile kokoro-onnx==0.6.1
-
-      - name: Install Piper TTS (ARM64)
-        run: |
-          ARCH=$(uname -m)
-          TAR_FILE=$([ "$ARCH" = "aarch64" ] && echo piper_linux_aarch64.tar.gz || echo piper_linux_x86_64.tar.gz)
-          mkdir -p /tmp/piper_install
-          curl -fsSL "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/$TAR_FILE" | tar -xz -C /tmp/piper_install
-          sudo cp -r /tmp/piper_install/piper/* /usr/local/bin/
-          piper --help > /dev/null && echo "piper OK"
-
-      - name: Unit tests (decision logic + curriculum QA)
-        run: python3 -m unittest discover -s backend/tests -v
-
-      - name: Install Chatterbox (only when selected)
-        if: (vars.SMARTKIDS_TTS_ENGINE || 'chatterbox') == 'chatterbox'
-        run: |
-          python3 -m venv /tmp/cbenv
-          /tmp/cbenv/bin/pip install -q --upgrade pip
-          /tmp/cbenv/bin/pip install -q chatterbox-tts==0.1.7 faster-whisper
-
-      - name: Download Kokoro narrator model
-        run: python3 backend/tools/download_models.py --kokoro
-
-      - name: Restore narration cache (identical lines are not re-synthesised)
-        uses: actions/cache/restore@v4
-        with:
-          path: backend/models/kokoro/tts_cache
-          key: tts-${{ github.run_id }}
-          restore-keys: tts-
-
-      - name: Run factory cycle
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
-          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
-          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
-          YOUTUBE_REFRESH_TOKEN_EN: ${{ secrets.YOUTUBE_REFRESH_TOKEN_EN }}
-          YOUTUBE_REFRESH_TOKEN_ES: ${{ secrets.YOUTUBE_REFRESH_TOKEN_ES }}
-          YOUTUBE_REFRESH_TOKEN_DE: ${{ secrets.YOUTUBE_REFRESH_TOKEN_DE }}
-          YOUTUBE_REFRESH_TOKEN_FR: ${{ secrets.YOUTUBE_REFRESH_TOKEN_FR }}
-          YOUTUBE_REFRESH_TOKEN_PT: ${{ secrets.YOUTUBE_REFRESH_TOKEN_PT }}
-          SMARTKIDS_TTS_ENGINE: ${{ vars.SMARTKIDS_TTS_ENGINE || 'chatterbox' }}
-          CHATTERBOX_PY: /tmp/cbenv/bin/python
-        run: |
-          FLAGS="--strict-supabase"
-          [ "${{ inputs.run_now }}" = "true" ] && FLAGS="$FLAGS --run-now"
-          [ "${{ inputs.force_run }}" = "true" ] && FLAGS="$FLAGS --force"
-          python3 backend/engine/factory_orchestrator.py $FLAGS
-
-      - name: Save narration cache (also after a failed run)
-        if: always()
-        uses: actions/cache/save@v4
-        with:
-          path: backend/models/kokoro/tts_cache
-          key: tts-${{ github.run_id }}
-
-      - name: Upload run audit
-        if: always()
-        uses: actions/upload-artifact@v6
-        with:
-          name: cloud-factory-run-${{ github.run_id }}
-          path: |
-            /tmp/smartkids_output/*.json
-            /tmp/smartkids_output/*.jpg
-          if-no-files-found: ignore
-          retention-days: 7
+  factory:
+    uses: ./.github/workflows/factory_core.yml
+    with:
+      run_now: ${{ inputs.run_now == true }}
+      force: ${{ inputs.force_run == true }}
+    secrets: inherit
