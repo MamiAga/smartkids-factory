@@ -1,0 +1,530 @@
+{
+ "language": "PT",
+ "ref_text": "Olá, meus amiguinhos! Uau, olha quantas cores lindas! Você consegue achar o vermelho? Eba, você conseguiu! Agora vamos contar juntos: um, dois, três! Viva, muito bem!",
+ "interjections": [
+  "Uau",
+  "Oh",
+  "Ooh",
+  "Eba",
+  "Opa",
+  "Olha",
+  "Viva",
+  "Uhuu",
+  "Oba",
+  "Psiu"
+ ],
+ "praise": [
+  "[excited] Eba! Muito bem!",
+  "[excited] Uhuu! Maravilhoso!",
+  "[excited] Uau! Fantástico!",
+  "[excited] Eba! Você é uma superestrela!",
+  "[excited] Viva! Mandou bem!",
+  "[excited] Uau, incrível!",
+  "[excited] Oba! Demais!",
+  "[excited] Eba, você acertou! [whisper] Que inteligente!"
+ ],
+ "count_words": [
+  "[excited] Três!",
+  "[excited] Dois!",
+  "[excited] Um!"
+ ],
+ "chapters": {
+  "hello": "A Lumi diz oi!",
+  "dance": "Hora de dançar!",
+  "guess": "Jogo de adivinhar!",
+  "bonus": "Rodada bônus!",
+  "sing": "Vamos cantar",
+  "bye": "Tchau, tchau!"
+ },
+ "ui": {
+  "lets_play": "Vamos aprender e brincar!",
+  "get_ready": "Prepare-se!",
+  "guess": "Adivinha!",
+  "yes_great": "Isso! Muito bem!",
+  "you_got_it": "Você acertou!",
+  "shout": "Fala bem alto!",
+  "sing_along": "Canta junto!",
+  "sing_with_me": "Canta comigo!",
+  "dance_break": "Hora de dançar!",
+  "wiggle": "Mexe e bate palmas!",
+  "great_job": "Muito bem!",
+  "see_you": "Até a próxima!",
+  "can_you_say": "Você consegue dizer {Name}?"
+ },
+ "meta": {
+  "description": "{title}\n\nVenha com a corujinha Lumi para uns 10 minutos de músicas, jogos de adivinhar e muita diversão! As crianças aprendem: {words}.\nTudo é interativo: adivinhe com a contagem 3-2-1, repita as palavras em voz alta e dance junto.\n\nObjetivo de aprendizagem: {goal}.\nPara pais e professores da educação infantil: pausem depois de cada pergunta e deixem a criança responder primeiro.\n\nCapítulos:\n{chapters}\n\n{credits}\n#SmartKids #EducaçãoInfantil #AprenderBrincando #VideoInfantil",
+  "credits": "Voz: Chatterbox TTS (MIT License), voz de referência do narrador criada com Kokoro-82M (Apache License 2.0). Arte dos emojis: Noto Emoji (Apache License 2.0). Música e efeitos sonoros: originais, criados pela SmartKids."
+ },
+ "packs": {
+  "EP-COLORS-MEGA-V1": {
+   "title": "Festa das Cores! 🍓 Aprender as Cores para Crianças e Bebês",
+   "thumb_text": "Festa das Cores!",
+   "learning_objective": "Reconhecer e nomear oito cores com objetos do dia a dia.",
+   "tags": [
+    "aprender as cores",
+    "cores para crianças",
+    "cores em português",
+    "cores para bebês",
+    "vídeo educativo infantil",
+    "educação infantil",
+    "desenho educativo"
+   ],
+   "intro": "[excited] Uau! Olá, olá, amiguinhos! Eu sou a corujinha Lumi! [excited] Eba! Hoje vamos viver uma aventura supercolorida! Vamos encontrar oito cores lindas, brincar de adivinhar e dançar, dançar, dançar! [whisper] Vamos começar? [excited] Vamos lá!",
+   "mystery": "[excited] Ooh! Que cor vem agora? [whisper] Psiu... vamos contar juntos!",
+   "repeat": "[excited] Ooh, fala comigo! {K}! [excited] Mais alto! {K}! [whisper] Uau, você é demais!",
+   "review_q": "[excited] Ooh! Que cor é essa? Fala bem alto!",
+   "chant": "[excited] Uhuu! Agora vamos cantar todas as cores juntos!",
+   "dance": "[excited] Oba! Hora de dançar! Balança os braços! Bate os pés! Palminhas, palminhas, palminhas! [whisper] Você está indo muito bem!",
+   "outro": "[excited] Uau, uau, uau! Hoje você aprendeu oito cores: vermelho, azul, amarelo, verde, roxo, laranja, rosa e marrom! [whisper] Você me deixa muito feliz. Agora, um abraço bem apertado! [excited] Eba! Até a próxima! Tchau, tchau!",
+   "ui": {
+    "guess_next": "Adivinha a próxima cor!",
+    "what_is_this": "Que cor é essa?"
+   },
+   "items": {
+    "red": {
+     "name": "vermelho",
+     "label": "VERMELHO",
+     "phrase": "vivo e quentinho",
+     "reveal": "[excited] Uau! É vermelho! [excited] Eba! O vermelho é vivo e quentinho!",
+     "quiz": "[excited] Eba, hora do jogo! Opa, qual deles é vermelho? [whisper] Olha bem direitinho...",
+     "review_answer": "[excited] Eba! É vermelho!",
+     "which_one": "Qual deles é vermelho?",
+     "its": "É vermelho!",
+     "examples": [
+      {
+       "caption": "maçã",
+       "line": "[excited] Oh! O que mais é vermelho? Olha! Uma maçã! [excited] Eba! A maçã é vermelha!",
+       "answer": "[excited] Uau! A maçã é vermelha!"
+      },
+      {
+       "caption": "caminhão de bombeiros",
+       "line": "[excited] Oh! O que mais é vermelho? Olha! Um caminhão de bombeiros! [excited] Eba! O caminhão de bombeiros é vermelho!",
+       "answer": "[excited] Uau! O caminhão de bombeiros é vermelho!"
+      },
+      {
+       "caption": "morango",
+       "line": "[excited] Oh! O que mais é vermelho? Olha! Um morango! [excited] Eba! O morango é vermelho!",
+       "answer": "[excited] Uau! O morango é vermelho!"
+      }
+     ]
+    },
+    "blue": {
+     "name": "azul",
+     "label": "AZUL",
+     "phrase": "calmo como o mar",
+     "reveal": "[excited] Uau! É azul! [excited] Eba! O azul é calmo como o mar!",
+     "quiz": "[excited] Eba, hora do jogo! Opa, qual deles é azul? [whisper] Olha bem direitinho...",
+     "review_answer": "[excited] Eba! É azul!",
+     "which_one": "Qual deles é azul?",
+     "its": "É azul!",
+     "examples": [
+      {
+       "caption": "baleia",
+       "line": "[excited] Oh! O que mais é azul? Olha! Uma baleia! [excited] Eba! A baleia é azul!",
+       "answer": "[excited] Uau! A baleia é azul!"
+      },
+      {
+       "caption": "mirtilo",
+       "line": "[excited] Oh! O que mais é azul? Olha! Um mirtilo! [excited] Eba! O mirtilo é azul!",
+       "answer": "[excited] Uau! O mirtilo é azul!"
+      },
+      {
+       "caption": "gota de água",
+       "line": "[excited] Oh! O que mais é azul? Olha! Uma gota de água! [excited] Eba! A gota de água é azul!",
+       "answer": "[excited] Uau! A gota de água é azul!"
+      }
+     ]
+    },
+    "yellow": {
+     "name": "amarelo",
+     "label": "AMARELO",
+     "phrase": "alegre como o sol",
+     "reveal": "[excited] Uau! É amarelo! [excited] Eba! O amarelo é alegre como o sol!",
+     "quiz": "[excited] Eba, hora do jogo! Opa, qual deles é amarelo? [whisper] Olha bem direitinho...",
+     "review_answer": "[excited] Eba! É amarelo!",
+     "which_one": "Qual deles é amarelo?",
+     "its": "É amarelo!",
+     "examples": [
+      {
+       "caption": "banana",
+       "line": "[excited] Oh! O que mais é amarelo? Olha! Uma banana! [excited] Eba! A banana é amarela!",
+       "answer": "[excited] Uau! A banana é amarela!"
+      },
+      {
+       "caption": "pintinho",
+       "line": "[excited] Oh! O que mais é amarelo? Olha! Um pintinho! [excited] Eba! O pintinho é amarelo!",
+       "answer": "[excited] Uau! O pintinho é amarelo!"
+      },
+      {
+       "caption": "sol",
+       "line": "[excited] Oh! O que mais é amarelo? Olha! Um sol! [excited] Eba! O sol é amarelo!",
+       "answer": "[excited] Uau! O sol é amarelo!"
+      }
+     ]
+    },
+    "green": {
+     "name": "verde",
+     "label": "VERDE",
+     "phrase": "fresquinho como a grama",
+     "reveal": "[excited] Uau! É verde! [excited] Eba! O verde é fresquinho como a grama!",
+     "quiz": "[excited] Eba, hora do jogo! Opa, qual deles é verde? [whisper] Olha bem direitinho...",
+     "review_answer": "[excited] Eba! É verde!",
+     "which_one": "Qual deles é verde?",
+     "its": "É verde!",
+     "examples": [
+      {
+       "caption": "sapo",
+       "line": "[excited] Oh! O que mais é verde? Olha! Um sapo! [excited] Eba! O sapo é verde!",
+       "answer": "[excited] Uau! O sapo é verde!"
+      },
+      {
+       "caption": "brócolis",
+       "line": "[excited] Oh! O que mais é verde? Olha! Um brócolis! [excited] Eba! O brócolis é verde!",
+       "answer": "[excited] Uau! O brócolis é verde!"
+      },
+      {
+       "caption": "trevo",
+       "line": "[excited] Oh! O que mais é verde? Olha! Um trevo! [excited] Eba! O trevo é verde!",
+       "answer": "[excited] Uau! O trevo é verde!"
+      }
+     ]
+    },
+    "purple": {
+     "name": "roxo",
+     "label": "ROXO",
+     "phrase": "elegante e mágico",
+     "reveal": "[excited] Uau! É roxo! [excited] Eba! O roxo é elegante e mágico!",
+     "quiz": "[excited] Eba, hora do jogo! Opa, qual deles é roxo? [whisper] Olha bem direitinho...",
+     "review_answer": "[excited] Eba! É roxo!",
+     "which_one": "Qual deles é roxo?",
+     "its": "É roxo!",
+     "examples": [
+      {
+       "caption": "cacho de uvas",
+       "line": "[excited] Oh! O que mais é roxo? Olha! Um cacho de uvas! [excited] Eba! O cacho de uvas é roxo!",
+       "answer": "[excited] Uau! O cacho de uvas é roxo!"
+      },
+      {
+       "caption": "berinjela",
+       "line": "[excited] Oh! O que mais é roxo? Olha! Uma berinjela! [excited] Eba! A berinjela é roxa!",
+       "answer": "[excited] Uau! A berinjela é roxa!"
+      },
+      {
+       "caption": "guarda-chuva",
+       "line": "[excited] Oh! O que mais é roxo? Olha! Um guarda-chuva! [excited] Eba! O guarda-chuva é roxo!",
+       "answer": "[excited] Uau! O guarda-chuva é roxo!"
+      }
+     ]
+    },
+    "orange": {
+     "name": "laranja",
+     "label": "LARANJA",
+     "phrase": "brilhante e animado",
+     "reveal": "[excited] Uau! É laranja! [excited] Eba! O laranja é brilhante e animado!",
+     "quiz": "[excited] Eba, hora do jogo! Opa, qual deles é laranja? [whisper] Olha bem direitinho...",
+     "review_answer": "[excited] Eba! É laranja!",
+     "which_one": "Qual deles é laranja?",
+     "its": "É laranja!",
+     "examples": [
+      {
+       "caption": "cenoura",
+       "line": "[excited] Oh! O que mais é laranja? Olha! Uma cenoura! [excited] Eba! A cenoura é laranja!",
+       "answer": "[excited] Uau! A cenoura é laranja!"
+      },
+      {
+       "caption": "abóbora",
+       "line": "[excited] Oh! O que mais é laranja? Olha! Uma abóbora! [excited] Eba! A abóbora é laranja!",
+       "answer": "[excited] Uau! A abóbora é laranja!"
+      },
+      {
+       "caption": "laranja",
+       "line": "[excited] Oh! O que mais é laranja? Olha! Uma laranja! [excited] Eba! A laranja é laranja!",
+       "answer": "[excited] Uau! A laranja é laranja!"
+      }
+     ]
+    },
+    "pink": {
+     "name": "rosa",
+     "label": "ROSA",
+     "phrase": "suave e docinho",
+     "reveal": "[excited] Uau! É rosa! [excited] Eba! O rosa é suave e docinho!",
+     "quiz": "[excited] Eba, hora do jogo! Opa, qual deles é rosa? [whisper] Olha bem direitinho...",
+     "review_answer": "[excited] Eba! É rosa!",
+     "which_one": "Qual deles é rosa?",
+     "its": "É rosa!",
+     "examples": [
+      {
+       "caption": "porquinho",
+       "line": "[excited] Oh! O que mais é rosa? Olha! Um porquinho! [excited] Eba! O porquinho é rosa!",
+       "answer": "[excited] Uau! O porquinho é rosa!"
+      },
+      {
+       "caption": "flamingo",
+       "line": "[excited] Oh! O que mais é rosa? Olha! Um flamingo! [excited] Eba! O flamingo é rosa!",
+       "answer": "[excited] Uau! O flamingo é rosa!"
+      },
+      {
+       "caption": "flor",
+       "line": "[excited] Oh! O que mais é rosa? Olha! Uma flor! [excited] Eba! A flor é rosa!",
+       "answer": "[excited] Uau! A flor é rosa!"
+      }
+     ]
+    },
+    "brown": {
+     "name": "marrom",
+     "label": "MARROM",
+     "phrase": "fofinho como um ursinho",
+     "reveal": "[excited] Uau! É marrom! [excited] Eba! O marrom é fofinho como um ursinho!",
+     "quiz": "[excited] Eba, hora do jogo! Opa, qual deles é marrom? [whisper] Olha bem direitinho...",
+     "review_answer": "[excited] Eba! É marrom!",
+     "which_one": "Qual deles é marrom?",
+     "its": "É marrom!",
+     "examples": [
+      {
+       "caption": "ursinho de pelúcia",
+       "line": "[excited] Oh! O que mais é marrom? Olha! Um ursinho de pelúcia! [excited] Eba! O ursinho de pelúcia é marrom!",
+       "answer": "[excited] Uau! O ursinho de pelúcia é marrom!"
+      },
+      {
+       "caption": "biscoito",
+       "line": "[excited] Oh! O que mais é marrom? Olha! Um biscoito! [excited] Eba! O biscoito é marrom!",
+       "answer": "[excited] Uau! O biscoito é marrom!"
+      },
+      {
+       "caption": "urso",
+       "line": "[excited] Oh! O que mais é marrom? Olha! Um urso! [excited] Eba! O urso é marrom!",
+       "answer": "[excited] Uau! O urso é marrom!"
+      }
+     ]
+    }
+   }
+  },
+  "EP-ANIMALS-MEGA-V1": {
+   "title": "Festa dos Sons dos Animais! 🐮 Aprender os Animais para Crianças",
+   "thumb_text": "Sons dos Animais!",
+   "learning_objective": "Nomear oito animais e os sons que eles fazem.",
+   "tags": [
+    "sons dos animais",
+    "aprender os animais",
+    "animais da fazenda",
+    "animais para crianças",
+    "vídeo educativo infantil",
+    "educação infantil",
+    "desenho educativo"
+   ],
+   "intro": "[excited] Uau! Olá, olá, amiguinhos! Eu sou a corujinha Lumi! [excited] Eba! Hoje vamos visitar muitos amigos animais! Vamos aprender os nomes deles, imitar os sons engraçados e brincar de adivinhar! [whisper] Vamos começar? [excited] Vamos lá!",
+   "mystery": "[excited] Ooh! Quem está escondido? [whisper] Psiu... vamos contar juntos!",
+   "repeat": "[excited] Ooh, fala comigo! {K}! [excited] Mais alto! {K}! [whisper] Uau, você é demais!",
+   "review_q": "[excited] Ooh! Quem é esse? Fala bem alto!",
+   "chant": "[excited] Uhuu! Agora vamos dizer juntos o nome de todos os nossos amigos animais!",
+   "dance": "[excited] Oba! Hora de dançar! Bate as asas como um pato! Pisa forte como um elefante! Pula como um coelhinho! [whisper] Você está indo muito bem!",
+   "outro": "[excited] Uau, uau, uau! Hoje você conheceu muitos amigos animais! [whisper] Você me deixa muito feliz. Agora, um abraço bem apertado! [excited] Eba! Até a próxima! Tchau, tchau!",
+   "ui": {
+    "guess_next": "Adivinha o próximo animal!",
+    "what_is_this": "Que animal é esse?"
+   },
+   "items": {
+    "cow": {
+     "name": "vaca",
+     "label": "VACA",
+     "phrase": "faz muu, muu",
+     "reveal": "[excited] Uau! É uma vaca! [excited] A vaca faz muu, muu!",
+     "quiz": "[excited] Eba, hora do jogo! Opa, qual é a vaca? [whisper] Olha bem direitinho...",
+     "review_answer": "[excited] Eba! É a vaca!",
+     "which_one": "Qual é a vaca?",
+     "its": "É a vaca!",
+     "answer": "[excited] Uau! Essa é a vaca!",
+     "examples": [
+      {
+       "caption": "Vaca",
+       "line": "[excited] Oh! A vaca mora na fazenda."
+      },
+      {
+       "caption": "Vaca",
+       "line": "[excited] Olha! A vaca nos dá leite."
+      },
+      {
+       "caption": "Vaca",
+       "line": "[excited] Uau! A vaca adora comer grama."
+      }
+     ]
+    },
+    "dog": {
+     "name": "cachorro",
+     "label": "CACHORRO",
+     "phrase": "faz au au",
+     "reveal": "[excited] Uau! É um cachorro! [excited] O cachorro faz au au!",
+     "quiz": "[excited] Eba, hora do jogo! Opa, qual é o cachorro? [whisper] Olha bem direitinho...",
+     "review_answer": "[excited] Eba! É o cachorro!",
+     "which_one": "Qual é o cachorro?",
+     "its": "É o cachorro!",
+     "answer": "[excited] Uau! Esse é o cachorro!",
+     "examples": [
+      {
+       "caption": "Cachorro",
+       "line": "[excited] Oh! O cachorro abana o rabo."
+      },
+      {
+       "caption": "Cachorro",
+       "line": "[excited] Olha! O cachorro adora um osso."
+      },
+      {
+       "caption": "Cachorro",
+       "line": "[excited] Uau! O cachorro brinca com a bola."
+      }
+     ]
+    },
+    "cat": {
+     "name": "gato",
+     "label": "GATO",
+     "phrase": "faz miau, miau",
+     "reveal": "[excited] Uau! É um gato! [excited] O gato faz miau, miau!",
+     "quiz": "[excited] Eba, hora do jogo! Opa, qual é o gato? [whisper] Olha bem direitinho...",
+     "review_answer": "[excited] Eba! É o gato!",
+     "which_one": "Qual é o gato?",
+     "its": "É o gato!",
+     "answer": "[excited] Uau! Esse é o gato!",
+     "examples": [
+      {
+       "caption": "Gato",
+       "line": "[excited] Oh! O gato é macio e fofinho."
+      },
+      {
+       "caption": "Gato",
+       "line": "[excited] Olha! O gato brinca com o novelo de lã."
+      },
+      {
+       "caption": "Gato",
+       "line": "[excited] Uau! O gato gosta de peixe."
+      }
+     ]
+    },
+    "duck": {
+     "name": "pato",
+     "label": "PATO",
+     "phrase": "faz quá, quá",
+     "reveal": "[excited] Uau! É um pato! [excited] O pato faz quá, quá!",
+     "quiz": "[excited] Eba, hora do jogo! Opa, qual é o pato? [whisper] Olha bem direitinho...",
+     "review_answer": "[excited] Eba! É o pato!",
+     "which_one": "Qual é o pato?",
+     "its": "É o pato!",
+     "answer": "[excited] Uau! Esse é o pato!",
+     "examples": [
+      {
+       "caption": "Pato",
+       "line": "[excited] Oh! O pato nada na lagoa."
+      },
+      {
+       "caption": "Pato",
+       "line": "[excited] Olha! O pato adora água."
+      },
+      {
+       "caption": "Pato",
+       "line": "[excited] Uau! O patinho é tão pequenininho."
+      }
+     ]
+    },
+    "sheep": {
+     "name": "ovelha",
+     "label": "OVELHA",
+     "phrase": "faz bééé",
+     "reveal": "[excited] Uau! É uma ovelha! [excited] A ovelha faz bééé!",
+     "quiz": "[excited] Eba, hora do jogo! Opa, qual é a ovelha? [whisper] Olha bem direitinho...",
+     "review_answer": "[excited] Eba! É a ovelha!",
+     "which_one": "Qual é a ovelha?",
+     "its": "É a ovelha!",
+     "answer": "[excited] Uau! Essa é a ovelha!",
+     "examples": [
+      {
+       "caption": "Ovelha",
+       "line": "[excited] Oh! A ovelha tem uma lã macia."
+      },
+      {
+       "caption": "Ovelha",
+       "line": "[excited] Olha! A ovelha parece uma nuvem."
+      },
+      {
+       "caption": "Ovelha",
+       "line": "[excited] Uau! A ovelha come grama."
+      }
+     ]
+    },
+    "pig": {
+     "name": "porco",
+     "label": "PORCO",
+     "phrase": "faz oinc, oinc",
+     "reveal": "[excited] Uau! É um porco! [excited] O porco faz oinc, oinc!",
+     "quiz": "[excited] Eba, hora do jogo! Opa, qual é o porco? [whisper] Olha bem direitinho...",
+     "review_answer": "[excited] Eba! É o porco!",
+     "which_one": "Qual é o porco?",
+     "its": "É o porco!",
+     "answer": "[excited] Uau! Esse é o porco!",
+     "examples": [
+      {
+       "caption": "Porco",
+       "line": "[excited] Oh! O porco é rosa."
+      },
+      {
+       "caption": "Porco",
+       "line": "[excited] Olha! O porco adora comer."
+      },
+      {
+       "caption": "Porco",
+       "line": "[excited] Uau! O porco brinca na lama."
+      }
+     ]
+    },
+    "lion": {
+     "name": "leão",
+     "label": "LEÃO",
+     "phrase": "faz rôôar",
+     "reveal": "[excited] Uau! É um leão! [excited] O leão faz rôôar!",
+     "quiz": "[excited] Eba, hora do jogo! Opa, qual é o leão? [whisper] Olha bem direitinho...",
+     "review_answer": "[excited] Eba! É o leão!",
+     "which_one": "Qual é o leão?",
+     "its": "É o leão!",
+     "answer": "[excited] Uau! Esse é o leão!",
+     "examples": [
+      {
+       "caption": "Leão",
+       "line": "[excited] Oh! O leão tem uma juba enorme."
+      },
+      {
+       "caption": "Leão",
+       "line": "[excited] Olha! O leão é o rei da selva."
+      },
+      {
+       "caption": "Leão",
+       "line": "[excited] Uau! O leão dorme no sol."
+      }
+     ]
+    },
+    "frog": {
+     "name": "sapo",
+     "label": "SAPO",
+     "phrase": "faz croac, croac",
+     "reveal": "[excited] Uau! É um sapo! [excited] O sapo faz croac, croac!",
+     "quiz": "[excited] Eba, hora do jogo! Opa, qual é o sapo? [whisper] Olha bem direitinho...",
+     "review_answer": "[excited] Eba! É o sapo!",
+     "which_one": "Qual é o sapo?",
+     "its": "É o sapo!",
+     "answer": "[excited] Uau! Esse é o sapo!",
+     "examples": [
+      {
+       "caption": "Sapo",
+       "line": "[excited] Oh! O sapo é verde."
+      },
+      {
+       "caption": "Sapo",
+       "line": "[excited] Olha! O sapo pega bichinhos."
+      },
+      {
+       "caption": "Sapo",
+       "line": "[excited] Uau! O sapo pula em cima da folha."
+      }
+     ]
+    }
+   }
+  }
+ }
+}

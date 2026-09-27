@@ -1,0 +1,530 @@
+{
+ "language": "FR",
+ "ref_text": "Bonjour, mes petits amis ! Waouh, regardez toutes ces jolies couleurs ! Vous trouvez le rouge ? Youpi, bravo ! Maintenant, on compte ensemble : un, deux, trois ! Hourra, super travail !",
+ "interjections": [
+  "Waouh",
+  "Oh",
+  "Ooh",
+  "Youpi",
+  "Oh là là",
+  "Regardez",
+  "Hourra",
+  "Youhou",
+  "Hop",
+  "Oups"
+ ],
+ "praise": [
+  "[excited] Youpi ! Bravo !",
+  "[excited] Youhou ! Magnifique !",
+  "[excited] Waouh ! Fantastique !",
+  "[excited] Youpi ! Vous êtes des superstars !",
+  "[excited] Hourra ! Bien joué !",
+  "[excited] Waouh, génial !",
+  "[excited] Hop ! Super !",
+  "[excited] Youpi, trouvé ! [whisper] Vous êtes trop malins !"
+ ],
+ "count_words": [
+  "[excited] Trois !",
+  "[excited] Deux !",
+  "[excited] Un !"
+ ],
+ "chapters": {
+  "hello": "Coucou de Lumi !",
+  "dance": "Pause danse !",
+  "guess": "Jeu de devinettes !",
+  "bonus": "Manche bonus !",
+  "sing": "On chante ensemble",
+  "bye": "Au revoir !"
+ },
+ "ui": {
+  "lets_play": "On apprend et on joue !",
+  "get_ready": "Préparez-vous !",
+  "guess": "Devinez !",
+  "yes_great": "Oui ! Bravo !",
+  "you_got_it": "Trouvé !",
+  "shout": "Criez-le fort !",
+  "sing_along": "Chantez avec nous !",
+  "sing_with_me": "Chantez avec moi !",
+  "dance_break": "Pause danse !",
+  "wiggle": "On bouge et on tape des mains !",
+  "great_job": "Super travail !",
+  "see_you": "À la prochaine !",
+  "can_you_say": "Qui peut dire {Name} ?"
+ },
+ "meta": {
+  "description": "{title}\n\nRetrouvez Lumi la chouette pour environ 10 minutes de chansons, de devinettes et de rires ! Les enfants apprennent : {words}.\nChaque moment est interactif : on devine avec le compte à rebours 3-2-1, on répète les mots à voix haute et on danse !\n\nObjectif pédagogique : {goal}.\nPour les parents et les enseignants de maternelle : faites une pause après chaque question et laissez votre enfant répondre en premier.\n\nChapitres :\n{chapters}\n\n{credits}\n#SmartKids #ApprendreEnSamusant #Maternelle #ToutPetits",
+  "credits": "Voix : Chatterbox TTS (MIT License), voix de référence de la narration créée avec Kokoro-82M (Apache License 2.0). Emojis : Noto Emoji (Apache License 2.0). Musique et effets sonores : originaux, créés par SmartKids."
+ },
+ "packs": {
+  "EP-COLORS-MEGA-V1": {
+   "title": "La fête des couleurs ! 🍓 Apprendre les couleurs pour les tout-petits",
+   "thumb_text": "Fête des couleurs !",
+   "learning_objective": "Reconnaître et nommer huit couleurs grâce à des objets du quotidien",
+   "tags": [
+    "apprendre les couleurs",
+    "les couleurs pour enfants",
+    "les couleurs en français",
+    "vidéo éducative pour enfants",
+    "apprendre en s'amusant",
+    "comptines maternelle",
+    "dessin animé pour bébé"
+   ],
+   "intro": "[excited] Waouh ! Bonjour, bonjour, mes petits amis ! Je suis Lumi la chouette ! [excited] Youpi ! Aujourd'hui, on part pour une aventure pleine de couleurs ! On va trouver huit jolies couleurs, jouer aux devinettes et danser, danser, danser ! [whisper] Vous êtes prêts ? [excited] C'est parti !",
+   "mystery": "[excited] Ooh ! Quelle couleur arrive maintenant ? [whisper] Chut... on compte ensemble !",
+   "repeat": "[excited] Ooh, répétez avec moi ! {K} ! [excited] Plus fort ! {K} ! [whisper] Waouh, vous êtes trop forts !",
+   "review_q": "[excited] Ooh ! C'est quelle couleur ? Criez-le fort !",
+   "chant": "[excited] Youhou ! Maintenant, on chante toutes les couleurs ensemble !",
+   "dance": "[excited] Hop ! Pause danse ! Bougez les bras ! Tapez des pieds ! Clap, clap, clap ! [whisper] Vous êtes super !",
+   "outro": "[excited] Waouh, waouh, waouh ! Aujourd'hui, vous avez appris huit couleurs : rouge, bleu, jaune, vert, violet, orange, rose et marron ! [whisper] Vous avez été formidables. Faites-vous un gros câlin. [excited] Youpi ! À la prochaine ! Au revoir !",
+   "ui": {
+    "guess_next": "Devinez la couleur suivante !",
+    "what_is_this": "C'est quelle couleur ?"
+   },
+   "items": {
+    "red": {
+     "name": "rouge",
+     "label": "ROUGE",
+     "phrase": "vif et chaud",
+     "reveal": "[excited] Waouh ! C'est rouge ! [excited] Youpi ! Le rouge, c'est vif et chaud !",
+     "quiz": "[excited] Youpi, on joue ! Oh là là, lequel est rouge ? [whisper] Regardez bien, très très attentivement...",
+     "review_answer": "[excited] Youpi ! C'est rouge !",
+     "which_one": "Lequel est rouge ?",
+     "its": "C'est rouge !",
+     "examples": [
+      {
+       "caption": "pomme",
+       "line": "[excited] Oh ! Qu'est-ce qui est rouge aussi ? Regardez ! Une pomme ! [excited] Youpi ! La pomme est rouge !",
+       "answer": "[excited] Waouh ! La pomme est rouge !"
+      },
+      {
+       "caption": "camion de pompiers",
+       "line": "[excited] Oh ! Qu'est-ce qui est rouge aussi ? Regardez ! Un camion de pompiers ! [excited] Youpi ! Le camion de pompiers est rouge !",
+       "answer": "[excited] Waouh ! Le camion de pompiers est rouge !"
+      },
+      {
+       "caption": "fraise",
+       "line": "[excited] Oh ! Qu'est-ce qui est rouge aussi ? Regardez ! Une fraise ! [excited] Youpi ! La fraise est rouge !",
+       "answer": "[excited] Waouh ! La fraise est rouge !"
+      }
+     ]
+    },
+    "blue": {
+     "name": "bleu",
+     "label": "BLEU",
+     "phrase": "frais comme l'océan",
+     "reveal": "[excited] Waouh ! C'est bleu ! [excited] Youpi ! Le bleu, c'est frais comme l'océan !",
+     "quiz": "[excited] Youpi, on joue ! Oh là là, lequel est bleu ? [whisper] Regardez bien, très très attentivement...",
+     "review_answer": "[excited] Youpi ! C'est bleu !",
+     "which_one": "Lequel est bleu ?",
+     "its": "C'est bleu !",
+     "examples": [
+      {
+       "caption": "baleine",
+       "line": "[excited] Oh ! Qu'est-ce qui est bleu aussi ? Regardez ! Une baleine ! [excited] Youpi ! La baleine est bleue !",
+       "answer": "[excited] Waouh ! La baleine est bleue !"
+      },
+      {
+       "caption": "myrtille",
+       "line": "[excited] Oh ! Qu'est-ce qui est bleu aussi ? Regardez ! Une myrtille ! [excited] Youpi ! La myrtille est bleue !",
+       "answer": "[excited] Waouh ! La myrtille est bleue !"
+      },
+      {
+       "caption": "goutte d'eau",
+       "line": "[excited] Oh ! Qu'est-ce qui est bleu aussi ? Regardez ! Une goutte d'eau ! [excited] Youpi ! La goutte d'eau est bleue !",
+       "answer": "[excited] Waouh ! La goutte d'eau est bleue !"
+      }
+     ]
+    },
+    "yellow": {
+     "name": "jaune",
+     "label": "JAUNE",
+     "phrase": "joyeux comme le soleil",
+     "reveal": "[excited] Waouh ! C'est jaune ! [excited] Youpi ! Le jaune, c'est joyeux comme le soleil !",
+     "quiz": "[excited] Youpi, on joue ! Oh là là, lequel est jaune ? [whisper] Regardez bien, très très attentivement...",
+     "review_answer": "[excited] Youpi ! C'est jaune !",
+     "which_one": "Lequel est jaune ?",
+     "its": "C'est jaune !",
+     "examples": [
+      {
+       "caption": "banane",
+       "line": "[excited] Oh ! Qu'est-ce qui est jaune aussi ? Regardez ! Une banane ! [excited] Youpi ! La banane est jaune !",
+       "answer": "[excited] Waouh ! La banane est jaune !"
+      },
+      {
+       "caption": "poussin",
+       "line": "[excited] Oh ! Qu'est-ce qui est jaune aussi ? Regardez ! Un poussin ! [excited] Youpi ! Le poussin est jaune !",
+       "answer": "[excited] Waouh ! Le poussin est jaune !"
+      },
+      {
+       "caption": "soleil",
+       "line": "[excited] Oh ! Qu'est-ce qui est jaune aussi ? Regardez ! Le soleil ! [excited] Youpi ! Le soleil est jaune !",
+       "answer": "[excited] Waouh ! Le soleil est jaune !"
+      }
+     ]
+    },
+    "green": {
+     "name": "vert",
+     "label": "VERT",
+     "phrase": "frais comme l'herbe",
+     "reveal": "[excited] Waouh ! C'est vert ! [excited] Youpi ! Le vert, c'est frais comme l'herbe !",
+     "quiz": "[excited] Youpi, on joue ! Oh là là, lequel est vert ? [whisper] Regardez bien, très très attentivement...",
+     "review_answer": "[excited] Youpi ! C'est vert !",
+     "which_one": "Lequel est vert ?",
+     "its": "C'est vert !",
+     "examples": [
+      {
+       "caption": "grenouille",
+       "line": "[excited] Oh ! Qu'est-ce qui est vert aussi ? Regardez ! Une grenouille ! [excited] Youpi ! La grenouille est verte !",
+       "answer": "[excited] Waouh ! La grenouille est verte !"
+      },
+      {
+       "caption": "brocoli",
+       "line": "[excited] Oh ! Qu'est-ce qui est vert aussi ? Regardez ! Un brocoli ! [excited] Youpi ! Le brocoli est vert !",
+       "answer": "[excited] Waouh ! Le brocoli est vert !"
+      },
+      {
+       "caption": "feuille de trèfle",
+       "line": "[excited] Oh ! Qu'est-ce qui est vert aussi ? Regardez ! Une feuille de trèfle ! [excited] Youpi ! La feuille de trèfle est verte !",
+       "answer": "[excited] Waouh ! La feuille de trèfle est verte !"
+      }
+     ]
+    },
+    "purple": {
+     "name": "violet",
+     "label": "VIOLET",
+     "phrase": "royal et magique",
+     "reveal": "[excited] Waouh ! C'est violet ! [excited] Youpi ! Le violet, c'est royal et magique !",
+     "quiz": "[excited] Youpi, on joue ! Oh là là, lequel est violet ? [whisper] Regardez bien, très très attentivement...",
+     "review_answer": "[excited] Youpi ! C'est violet !",
+     "which_one": "Lequel est violet ?",
+     "its": "C'est violet !",
+     "examples": [
+      {
+       "caption": "grappe de raisin",
+       "line": "[excited] Oh ! Qu'est-ce qui est violet aussi ? Regardez ! Une grappe de raisin ! [excited] Youpi ! La grappe de raisin est violette !",
+       "answer": "[excited] Waouh ! La grappe de raisin est violette !"
+      },
+      {
+       "caption": "aubergine",
+       "line": "[excited] Oh ! Qu'est-ce qui est violet aussi ? Regardez ! Une aubergine ! [excited] Youpi ! L'aubergine est violette !",
+       "answer": "[excited] Waouh ! L'aubergine est violette !"
+      },
+      {
+       "caption": "parapluie",
+       "line": "[excited] Oh ! Qu'est-ce qui est violet aussi ? Regardez ! Un parapluie ! [excited] Youpi ! Le parapluie est violet !",
+       "answer": "[excited] Waouh ! Le parapluie est violet !"
+      }
+     ]
+    },
+    "orange": {
+     "name": "orange",
+     "label": "ORANGE",
+     "phrase": "gai et lumineux",
+     "reveal": "[excited] Waouh ! C'est orange ! [excited] Youpi ! L'orange, c'est gai et lumineux !",
+     "quiz": "[excited] Youpi, on joue ! Oh là là, lequel est orange ? [whisper] Regardez bien, très très attentivement...",
+     "review_answer": "[excited] Youpi ! C'est orange !",
+     "which_one": "Lequel est orange ?",
+     "its": "C'est orange !",
+     "examples": [
+      {
+       "caption": "carotte",
+       "line": "[excited] Oh ! Qu'est-ce qui est orange aussi ? Regardez ! Une carotte ! [excited] Youpi ! La carotte est orange !",
+       "answer": "[excited] Waouh ! La carotte est orange !"
+      },
+      {
+       "caption": "citrouille",
+       "line": "[excited] Oh ! Qu'est-ce qui est orange aussi ? Regardez ! Une citrouille ! [excited] Youpi ! La citrouille est orange !",
+       "answer": "[excited] Waouh ! La citrouille est orange !"
+      },
+      {
+       "caption": "orange",
+       "line": "[excited] Oh ! Qu'est-ce qui est orange aussi ? Regardez ! Une orange ! [excited] Youpi ! L'orange est orange !",
+       "answer": "[excited] Waouh ! L'orange est orange !"
+      }
+     ]
+    },
+    "pink": {
+     "name": "rose",
+     "label": "ROSE",
+     "phrase": "doux et tendre",
+     "reveal": "[excited] Waouh ! C'est rose ! [excited] Youpi ! Le rose, c'est doux et tendre !",
+     "quiz": "[excited] Youpi, on joue ! Oh là là, lequel est rose ? [whisper] Regardez bien, très très attentivement...",
+     "review_answer": "[excited] Youpi ! C'est rose !",
+     "which_one": "Lequel est rose ?",
+     "its": "C'est rose !",
+     "examples": [
+      {
+       "caption": "petit cochon",
+       "line": "[excited] Oh ! Qu'est-ce qui est rose aussi ? Regardez ! Un petit cochon ! [excited] Youpi ! Le petit cochon est rose !",
+       "answer": "[excited] Waouh ! Le petit cochon est rose !"
+      },
+      {
+       "caption": "flamant rose",
+       "line": "[excited] Oh ! Qu'est-ce qui est rose aussi ? Regardez ! Un flamant rose ! [excited] Youpi ! Le flamant rose est rose !",
+       "answer": "[excited] Waouh ! Le flamant rose est rose !"
+      },
+      {
+       "caption": "fleur",
+       "line": "[excited] Oh ! Qu'est-ce qui est rose aussi ? Regardez ! Une fleur ! [excited] Youpi ! La fleur est rose !",
+       "answer": "[excited] Waouh ! La fleur est rose !"
+      }
+     ]
+    },
+    "brown": {
+     "name": "marron",
+     "label": "MARRON",
+     "phrase": "tout doux comme un nounours",
+     "reveal": "[excited] Waouh ! C'est marron ! [excited] Youpi ! Le marron, c'est tout doux comme un nounours !",
+     "quiz": "[excited] Youpi, on joue ! Oh là là, lequel est marron ? [whisper] Regardez bien, très très attentivement...",
+     "review_answer": "[excited] Youpi ! C'est marron !",
+     "which_one": "Lequel est marron ?",
+     "its": "C'est marron !",
+     "examples": [
+      {
+       "caption": "nounours",
+       "line": "[excited] Oh ! Qu'est-ce qui est marron aussi ? Regardez ! Un nounours ! [excited] Youpi ! Le nounours est marron !",
+       "answer": "[excited] Waouh ! Le nounours est marron !"
+      },
+      {
+       "caption": "biscuit",
+       "line": "[excited] Oh ! Qu'est-ce qui est marron aussi ? Regardez ! Un biscuit ! [excited] Youpi ! Le biscuit est marron !",
+       "answer": "[excited] Waouh ! Le biscuit est marron !"
+      },
+      {
+       "caption": "ours",
+       "line": "[excited] Oh ! Qu'est-ce qui est marron aussi ? Regardez ! Un ours ! [excited] Youpi ! L'ours est marron !",
+       "answer": "[excited] Waouh ! L'ours est marron !"
+      }
+     ]
+    }
+   }
+  },
+  "EP-ANIMALS-MEGA-V1": {
+   "title": "La fête des cris d'animaux ! 🐮 Apprendre les animaux pour les tout-petits",
+   "thumb_text": "Cris d'animaux !",
+   "learning_objective": "Nommer huit animaux et imiter les cris qu'ils font",
+   "tags": [
+    "cris des animaux",
+    "apprendre les animaux",
+    "animaux de la ferme",
+    "vidéo éducative pour enfants",
+    "apprendre en s'amusant",
+    "comptines maternelle",
+    "dessin animé pour bébé"
+   ],
+   "intro": "[excited] Waouh ! Bonjour, bonjour, mes petits amis ! Je suis Lumi la chouette ! [excited] Youpi ! Aujourd'hui, on rend visite à plein d'amis animaux ! On va apprendre leurs noms, imiter leurs cris rigolos et jouer aux devinettes ! [whisper] Vous êtes prêts ? [excited] C'est parti !",
+   "mystery": "[excited] Ooh ! Qui se cache ici ? [whisper] Chut... on compte ensemble !",
+   "repeat": "[excited] Ooh, répétez avec moi ! {K} ! [excited] Plus fort ! {K} ! [whisper] Waouh, vous êtes trop forts !",
+   "review_q": "[excited] Ooh ! Qui est-ce ? Criez-le fort !",
+   "chant": "[excited] Youhou ! Maintenant, on dit tous nos amis animaux ensemble !",
+   "dance": "[excited] Hop ! Pause danse ! Battez des ailes comme un canard ! Tapez des pieds comme un éléphant ! Sautez comme un lapin ! [whisper] Vous êtes super !",
+   "outro": "[excited] Waouh, waouh, waouh ! Aujourd'hui, vous avez rencontré plein d'amis animaux ! [whisper] Vous avez été formidables. Faites-vous un gros câlin. [excited] Youpi ! À la prochaine ! Au revoir !",
+   "ui": {
+    "guess_next": "Devinez l'animal suivant !",
+    "what_is_this": "Quel est cet animal ?"
+   },
+   "items": {
+    "cow": {
+     "name": "vache",
+     "label": "VACHE",
+     "phrase": "fait meuh, meuh",
+     "reveal": "[excited] Waouh ! C'est une vache ! [excited] La vache fait meuh, meuh !",
+     "quiz": "[excited] Youpi, on joue ! Oh là là, où est la vache ? [whisper] Regardez bien, très très attentivement...",
+     "review_answer": "[excited] Youpi ! C'est la vache !",
+     "which_one": "Où est la vache ?",
+     "its": "C'est la vache !",
+     "answer": "[excited] Waouh ! C'est bien la vache !",
+     "examples": [
+      {
+       "caption": "Vache",
+       "line": "[excited] Oh ! La vache vit à la ferme."
+      },
+      {
+       "caption": "Vache",
+       "line": "[excited] Regardez ! La vache nous donne du lait."
+      },
+      {
+       "caption": "Vache",
+       "line": "[excited] Waouh ! La vache adore manger de l'herbe."
+      }
+     ]
+    },
+    "dog": {
+     "name": "chien",
+     "label": "CHIEN",
+     "phrase": "fait ouaf, ouaf",
+     "reveal": "[excited] Waouh ! C'est un chien ! [excited] Le chien fait ouaf, ouaf !",
+     "quiz": "[excited] Youpi, on joue ! Oh là là, où est le chien ? [whisper] Regardez bien, très très attentivement...",
+     "review_answer": "[excited] Youpi ! C'est le chien !",
+     "which_one": "Où est le chien ?",
+     "its": "C'est le chien !",
+     "answer": "[excited] Waouh ! C'est bien le chien !",
+     "examples": [
+      {
+       "caption": "Chien",
+       "line": "[excited] Oh ! Le chien remue la queue."
+      },
+      {
+       "caption": "Chien",
+       "line": "[excited] Regardez ! Le chien adore son os."
+      },
+      {
+       "caption": "Chien",
+       "line": "[excited] Waouh ! Le chien joue avec une balle."
+      }
+     ]
+    },
+    "cat": {
+     "name": "chat",
+     "label": "CHAT",
+     "phrase": "fait miaou, miaou",
+     "reveal": "[excited] Waouh ! C'est un chat ! [excited] Le chat fait miaou, miaou !",
+     "quiz": "[excited] Youpi, on joue ! Oh là là, où est le chat ? [whisper] Regardez bien, très très attentivement...",
+     "review_answer": "[excited] Youpi ! C'est le chat !",
+     "which_one": "Où est le chat ?",
+     "its": "C'est le chat !",
+     "answer": "[excited] Waouh ! C'est bien le chat !",
+     "examples": [
+      {
+       "caption": "Chat",
+       "line": "[excited] Oh ! Le chat est tout doux."
+      },
+      {
+       "caption": "Chat",
+       "line": "[excited] Regardez ! Le chat joue avec une pelote de laine."
+      },
+      {
+       "caption": "Chat",
+       "line": "[excited] Waouh ! Le chat aime le poisson."
+      }
+     ]
+    },
+    "duck": {
+     "name": "canard",
+     "label": "CANARD",
+     "phrase": "fait coin-coin",
+     "reveal": "[excited] Waouh ! C'est un canard ! [excited] Le canard fait coin-coin !",
+     "quiz": "[excited] Youpi, on joue ! Oh là là, où est le canard ? [whisper] Regardez bien, très très attentivement...",
+     "review_answer": "[excited] Youpi ! C'est le canard !",
+     "which_one": "Où est le canard ?",
+     "its": "C'est le canard !",
+     "answer": "[excited] Waouh ! C'est bien le canard !",
+     "examples": [
+      {
+       "caption": "Canard",
+       "line": "[excited] Oh ! Le canard nage dans la mare."
+      },
+      {
+       "caption": "Canard",
+       "line": "[excited] Regardez ! Le canard adore l'eau."
+      },
+      {
+       "caption": "Canard",
+       "line": "[excited] Waouh ! Le bébé canard est tout petit."
+      }
+     ]
+    },
+    "sheep": {
+     "name": "mouton",
+     "label": "MOUTON",
+     "phrase": "fait bêêê, bêêê",
+     "reveal": "[excited] Waouh ! C'est un mouton ! [excited] Le mouton fait bêêê, bêêê !",
+     "quiz": "[excited] Youpi, on joue ! Oh là là, où est le mouton ? [whisper] Regardez bien, très très attentivement...",
+     "review_answer": "[excited] Youpi ! C'est le mouton !",
+     "which_one": "Où est le mouton ?",
+     "its": "C'est le mouton !",
+     "answer": "[excited] Waouh ! C'est bien le mouton !",
+     "examples": [
+      {
+       "caption": "Mouton",
+       "line": "[excited] Oh ! Le mouton a une laine toute douce."
+      },
+      {
+       "caption": "Mouton",
+       "line": "[excited] Regardez ! Le mouton ressemble à un nuage."
+      },
+      {
+       "caption": "Mouton",
+       "line": "[excited] Waouh ! Le mouton mange de l'herbe."
+      }
+     ]
+    },
+    "pig": {
+     "name": "cochon",
+     "label": "COCHON",
+     "phrase": "fait groin, groin",
+     "reveal": "[excited] Waouh ! C'est un cochon ! [excited] Le cochon fait groin, groin !",
+     "quiz": "[excited] Youpi, on joue ! Oh là là, où est le cochon ? [whisper] Regardez bien, très très attentivement...",
+     "review_answer": "[excited] Youpi ! C'est le cochon !",
+     "which_one": "Où est le cochon ?",
+     "its": "C'est le cochon !",
+     "answer": "[excited] Waouh ! C'est bien le cochon !",
+     "examples": [
+      {
+       "caption": "Cochon",
+       "line": "[excited] Oh ! Le cochon est rose."
+      },
+      {
+       "caption": "Cochon",
+       "line": "[excited] Regardez ! Le cochon adore manger."
+      },
+      {
+       "caption": "Cochon",
+       "line": "[excited] Waouh ! Le cochon joue dans la boue."
+      }
+     ]
+    },
+    "lion": {
+     "name": "lion",
+     "label": "LION",
+     "phrase": "rugit : grrr",
+     "reveal": "[excited] Waouh ! C'est un lion ! [excited] Le lion rugit : grrr !",
+     "quiz": "[excited] Youpi, on joue ! Oh là là, où est le lion ? [whisper] Regardez bien, très très attentivement...",
+     "review_answer": "[excited] Youpi ! C'est le lion !",
+     "which_one": "Où est le lion ?",
+     "its": "C'est le lion !",
+     "answer": "[excited] Waouh ! C'est bien le lion !",
+     "examples": [
+      {
+       "caption": "Lion",
+       "line": "[excited] Oh ! Le lion a une grande crinière."
+      },
+      {
+       "caption": "Lion",
+       "line": "[excited] Regardez ! Le lion est le roi de la jungle."
+      },
+      {
+       "caption": "Lion",
+       "line": "[excited] Waouh ! Le lion dort au soleil."
+      }
+     ]
+    },
+    "frog": {
+     "name": "grenouille",
+     "label": "GRENOUILLE",
+     "phrase": "fait coâ, coâ",
+     "reveal": "[excited] Waouh ! C'est une grenouille ! [excited] La grenouille fait coâ, coâ !",
+     "quiz": "[excited] Youpi, on joue ! Oh là là, où est la grenouille ? [whisper] Regardez bien, très très attentivement...",
+     "review_answer": "[excited] Youpi ! C'est la grenouille !",
+     "which_one": "Où est la grenouille ?",
+     "its": "C'est la grenouille !",
+     "answer": "[excited] Waouh ! C'est bien la grenouille !",
+     "examples": [
+      {
+       "caption": "Grenouille",
+       "line": "[excited] Oh ! La grenouille est verte."
+      },
+      {
+       "caption": "Grenouille",
+       "line": "[excited] Regardez ! La grenouille attrape des insectes."
+      },
+      {
+       "caption": "Grenouille",
+       "line": "[excited] Waouh ! La grenouille saute sur une feuille."
+      }
+     ]
+    }
+   }
+  }
+ }
+}

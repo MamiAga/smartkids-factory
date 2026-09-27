@@ -1,0 +1,535 @@
+{
+ "language": "TR",
+ "ref_text": "Merhaba minik arkadaşlarım! Vay, şu güzel renklere bakın! Kırmızıyı bulabilir misiniz? Yaşasın, buldunuz! Şimdi hep birlikte sayalım: bir, iki, üç! Oley, aferin size!",
+ "interjections": [
+  "Vay",
+  "Oo",
+  "Aa",
+  "Yaşasın",
+  "Bakın",
+  "Oley",
+  "Yuppi",
+  "Hey",
+  "Hopla",
+  "Bravo"
+ ],
+ "praise": [
+  "[excited] Yaşasın! Aferin size!",
+  "[excited] Oley! Harika!",
+  "[excited] Vay! Muhteşem!",
+  "[excited] Yaşasın! Süpersiniz!",
+  "[excited] Oley! Çok güzel yaptınız!",
+  "[excited] Vay, inanılmaz!",
+  "[excited] Yuppi! Süper!",
+  "[excited] Yaşasın, bildiniz! [whisper] Ne kadar akıllısınız!"
+ ],
+ "count_words": [
+  "[excited] Üç!",
+  "[excited] İki!",
+  "[excited] Bir!"
+ ],
+ "chapters": {
+  "hello": "Lumi'den merhaba!",
+  "dance": "Dans molası!",
+  "guess": "Tahmin oyunu!",
+  "bonus": "Bonus tur!",
+  "sing": "Hep birlikte şarkı",
+  "bye": "Hoşça kalın!"
+ },
+ "ui": {
+  "lets_play": "Hadi öğrenelim ve oynayalım!",
+  "get_ready": "Hazır olun!",
+  "guess": "Tahmin edin!",
+  "yes_great": "Evet! Aferin!",
+  "you_got_it": "Bildiniz!",
+  "shout": "Yüksek sesle söyleyin!",
+  "sing_along": "Hep birlikte söyleyelim!",
+  "sing_with_me": "Benimle şarkı söyleyin!",
+  "dance_break": "Dans molası!",
+  "wiggle": "Kıpırdayın ve alkışlayın!",
+  "great_job": "Aferin size!",
+  "see_you": "Görüşmek üzere!",
+  "can_you_say": "Hadi söyleyin: {Name}!"
+ },
+ "meta": {
+  "description": "{title}\n\nBaykuş Lumi ile yaklaşık 10 dakika boyunca şarkılar, tahmin oyunları ve eğlence sizi bekliyor! Çocuklar şunları öğreniyor: {words}.\nHer bölüm etkileşimli: 3-2-1 geri sayımıyla tahmin edin, kelimeleri yüksek sesle tekrar edin ve birlikte dans edin.\n\nÖğrenme hedefi: {goal}.\nAnne babalar ve okul öncesi öğretmenleri için: Her sorudan sonra videoyu durdurun ve önce çocuğunuzun cevap vermesine fırsat tanıyın.\n\nBölümler:\n{chapters}\n\n{credits}\n#SmartKids #ÇocukEğitimi #OkulÖncesi #EğiticiVideolar",
+  "credits": "Ses: Chatterbox TTS (MIT License), anlatıcı referans sesi Kokoro-82M (Apache License 2.0) ile oluşturuldu. Emoji çizimleri: Noto Emoji (Apache License 2.0). Müzik ve ses efektleri: SmartKids tarafından üretilmiş özgün içerik."
+ },
+ "packs": {
+  "EP-COLORS-MEGA-V1": {
+   "title": "Renk Partisi! 🍓 Çocuklar İçin Renkleri Öğreniyoruz",
+   "thumb_text": "Renk Partisi!",
+   "learning_objective": "Günlük hayattan nesnelerle sekiz rengi tanımak ve adlandırmak",
+   "tags": [
+    "renkleri öğreniyorum",
+    "renkleri öğrenelim",
+    "çocuklar için renkler",
+    "okul öncesi eğitim",
+    "eğitici çocuk videoları",
+    "bebekler için eğitici video",
+    "çocuk şarkıları"
+   ],
+   "intro": "[excited] Vay! Merhaba, merhaba minik arkadaşlarım! Ben Baykuş Lumi! [excited] Yaşasın! Bugün rengârenk bir maceraya çıkıyoruz! Sekiz güzel renk bulacağız, tahmin oyunları oynayacağız ve bol bol dans edeceğiz! [whisper] Hazır mısınız? [excited] Hadi başlayalım!",
+   "mystery": "[excited] Oo! Sıradaki renk hangisi acaba? [whisper] Şşş... hep birlikte sayalım!",
+   "repeat": "[excited] Oo, benimle birlikte söyleyin! {K}! [excited] Daha yüksek sesle! {K}! [whisper] Vay, harikasınız!",
+   "review_q": "[excited] Oo! Bu hangi renk? Yüksek sesle söyleyin!",
+   "chant": "[excited] Oley! Şimdi bütün renkleri hep birlikte şarkıyla söyleyelim!",
+   "dance": "[excited] Yuppi! Dans molası! Kollarınızı sallayın! Ayaklarınızı yere vurun! Alkış, alkış, alkış! [whisper] Çok güzel yapıyorsunuz!",
+   "outro": "[excited] Vay, vay, vay! Bugün sekiz renk öğrendiniz: kırmızı, mavi, sarı, yeşil, mor, turuncu, pembe ve kahverengi! [whisper] Sizinle çok gurur duyuyorum. Kendinize kocaman sarılın. [excited] Yaşasın! Bir dahaki sefere görüşürüz! Hoşça kalın!",
+   "ui": {
+    "guess_next": "Sıradaki rengi tahmin edin!",
+    "what_is_this": "Bu hangi renk?"
+   },
+   "items": {
+    "red": {
+     "name": "kırmızı",
+     "label": "KIRMIZI",
+     "phrase": "parlak ve sıcacık",
+     "reveal": "[excited] Vay! İşte kırmızı! [excited] Yaşasın! Kırmızı, parlak ve sıcacık bir renk!",
+     "quiz": "[excited] Yaşasın, oyun zamanı! Aa, hangisi kırmızı? [whisper] Çok ama çok dikkatli bakın...",
+     "review_answer": "[excited] Yaşasın! Bu kırmızı!",
+     "which_one": "Hangisi kırmızı?",
+     "its": "İşte kırmızı!",
+     "examples": [
+      {
+       "caption": "elma",
+       "line": "[excited] Oo! Başka neler kırmızı? Bakın! İşte bir elma! [excited] Yaşasın! Elma kırmızı!",
+       "answer": "[excited] Vay! Elma kırmızı!"
+      },
+      {
+       "caption": "itfaiye arabası",
+       "line": "[excited] Oo! Başka neler kırmızı? Bakın! İşte bir itfaiye arabası! [excited] Yaşasın! İtfaiye arabası kırmızı!",
+       "answer": "[excited] Vay! İtfaiye arabası kırmızı!"
+      },
+      {
+       "caption": "çilek",
+       "line": "[excited] Oo! Başka neler kırmızı? Bakın! İşte bir çilek! [excited] Yaşasın! Çilek kırmızı!",
+       "answer": "[excited] Vay! Çilek kırmızı!"
+      }
+     ]
+    },
+    "blue": {
+     "name": "mavi",
+     "label": "MAVİ",
+     "phrase": "deniz gibi serin",
+     "reveal": "[excited] Vay! İşte mavi! [excited] Yaşasın! Mavi, deniz gibi serin bir renk!",
+     "quiz": "[excited] Yaşasın, oyun zamanı! Aa, hangisi mavi? [whisper] Çok ama çok dikkatli bakın...",
+     "review_answer": "[excited] Yaşasın! Bu mavi!",
+     "which_one": "Hangisi mavi?",
+     "its": "İşte mavi!",
+     "examples": [
+      {
+       "caption": "balina",
+       "line": "[excited] Oo! Başka neler mavi? Bakın! İşte bir balina! [excited] Yaşasın! Balina mavi!",
+       "answer": "[excited] Vay! Balina mavi!"
+      },
+      {
+       "caption": "yaban mersini",
+       "line": "[excited] Oo! Başka neler mavi? Bakın! İşte bir yaban mersini! [excited] Yaşasın! Yaban mersini mavi!",
+       "answer": "[excited] Vay! Yaban mersini mavi!"
+      },
+      {
+       "caption": "su damlası",
+       "line": "[excited] Oo! Başka neler mavi? Bakın! İşte bir su damlası! [excited] Yaşasın! Su damlası mavi!",
+       "answer": "[excited] Vay! Su damlası mavi!"
+      }
+     ]
+    },
+    "yellow": {
+     "name": "sarı",
+     "label": "SARI",
+     "phrase": "güneş gibi neşeli",
+     "reveal": "[excited] Vay! İşte sarı! [excited] Yaşasın! Sarı, güneş gibi neşeli bir renk!",
+     "quiz": "[excited] Yaşasın, oyun zamanı! Aa, hangisi sarı? [whisper] Çok ama çok dikkatli bakın...",
+     "review_answer": "[excited] Yaşasın! Bu sarı!",
+     "which_one": "Hangisi sarı?",
+     "its": "İşte sarı!",
+     "examples": [
+      {
+       "caption": "muz",
+       "line": "[excited] Oo! Başka neler sarı? Bakın! İşte bir muz! [excited] Yaşasın! Muz sarı!",
+       "answer": "[excited] Vay! Muz sarı!"
+      },
+      {
+       "caption": "civciv",
+       "line": "[excited] Oo! Başka neler sarı? Bakın! İşte bir civciv! [excited] Yaşasın! Civciv sarı!",
+       "answer": "[excited] Vay! Civciv sarı!"
+      },
+      {
+       "caption": "güneş",
+       "line": "[excited] Oo! Başka neler sarı? Bakın! İşte güneş! [excited] Yaşasın! Güneş sarı!",
+       "answer": "[excited] Vay! Güneş sarı!"
+      }
+     ]
+    },
+    "green": {
+     "name": "yeşil",
+     "label": "YEŞİL",
+     "phrase": "çimen gibi taptaze",
+     "reveal": "[excited] Vay! İşte yeşil! [excited] Yaşasın! Yeşil, çimen gibi taptaze bir renk!",
+     "quiz": "[excited] Yaşasın, oyun zamanı! Aa, hangisi yeşil? [whisper] Çok ama çok dikkatli bakın...",
+     "review_answer": "[excited] Yaşasın! Bu yeşil!",
+     "which_one": "Hangisi yeşil?",
+     "its": "İşte yeşil!",
+     "examples": [
+      {
+       "caption": "kurbağa",
+       "line": "[excited] Oo! Başka neler yeşil? Bakın! İşte bir kurbağa! [excited] Yaşasın! Kurbağa yeşil!",
+       "answer": "[excited] Vay! Kurbağa yeşil!"
+      },
+      {
+       "caption": "brokoli",
+       "line": "[excited] Oo! Başka neler yeşil? Bakın! İşte bir brokoli! [excited] Yaşasın! Brokoli yeşil!",
+       "answer": "[excited] Vay! Brokoli yeşil!"
+      },
+      {
+       "caption": "yonca yaprağı",
+       "line": "[excited] Oo! Başka neler yeşil? Bakın! İşte bir yonca yaprağı! [excited] Yaşasın! Yonca yaprağı yeşil!",
+       "answer": "[excited] Vay! Yonca yaprağı yeşil!"
+      }
+     ]
+    },
+    "purple": {
+     "name": "mor",
+     "label": "MOR",
+     "phrase": "büyülü ve masalsı",
+     "reveal": "[excited] Vay! İşte mor! [excited] Yaşasın! Mor, büyülü ve masalsı bir renk!",
+     "quiz": "[excited] Yaşasın, oyun zamanı! Aa, hangisi mor? [whisper] Çok ama çok dikkatli bakın...",
+     "review_answer": "[excited] Yaşasın! Bu mor!",
+     "which_one": "Hangisi mor?",
+     "its": "İşte mor!",
+     "examples": [
+      {
+       "caption": "üzüm salkımı",
+       "line": "[excited] Oo! Başka neler mor? Bakın! İşte bir üzüm salkımı! [excited] Yaşasın! Üzüm salkımı mor!",
+       "answer": "[excited] Vay! Üzüm salkımı mor!"
+      },
+      {
+       "caption": "patlıcan",
+       "line": "[excited] Oo! Başka neler mor? Bakın! İşte bir patlıcan! [excited] Yaşasın! Patlıcan mor!",
+       "answer": "[excited] Vay! Patlıcan mor!"
+      },
+      {
+       "caption": "şemsiye",
+       "line": "[excited] Oo! Başka neler mor? Bakın! İşte bir şemsiye! [excited] Yaşasın! Şemsiye mor!",
+       "answer": "[excited] Vay! Şemsiye mor!"
+      }
+     ]
+    },
+    "orange": {
+     "name": "turuncu",
+     "label": "TURUNCU",
+     "phrase": "portakal gibi canlı",
+     "reveal": "[excited] Vay! İşte turuncu! [excited] Yaşasın! Turuncu, portakal gibi canlı bir renk!",
+     "quiz": "[excited] Yaşasın, oyun zamanı! Aa, hangisi turuncu? [whisper] Çok ama çok dikkatli bakın...",
+     "review_answer": "[excited] Yaşasın! Bu turuncu!",
+     "which_one": "Hangisi turuncu?",
+     "its": "İşte turuncu!",
+     "examples": [
+      {
+       "caption": "havuç",
+       "line": "[excited] Oo! Başka neler turuncu? Bakın! İşte bir havuç! [excited] Yaşasın! Havuç turuncu!",
+       "answer": "[excited] Vay! Havuç turuncu!"
+      },
+      {
+       "caption": "bal kabağı",
+       "line": "[excited] Oo! Başka neler turuncu? Bakın! İşte bir bal kabağı! [excited] Yaşasın! Bal kabağı turuncu!",
+       "answer": "[excited] Vay! Bal kabağı turuncu!"
+      },
+      {
+       "caption": "portakal",
+       "line": "[excited] Oo! Başka neler turuncu? Bakın! İşte bir portakal! [excited] Yaşasın! Portakal turuncu!",
+       "answer": "[excited] Vay! Portakal turuncu!"
+      }
+     ]
+    },
+    "pink": {
+     "name": "pembe",
+     "label": "PEMBE",
+     "phrase": "yumuşacık ve tatlı",
+     "reveal": "[excited] Vay! İşte pembe! [excited] Yaşasın! Pembe, yumuşacık ve tatlı bir renk!",
+     "quiz": "[excited] Yaşasın, oyun zamanı! Aa, hangisi pembe? [whisper] Çok ama çok dikkatli bakın...",
+     "review_answer": "[excited] Yaşasın! Bu pembe!",
+     "which_one": "Hangisi pembe?",
+     "its": "İşte pembe!",
+     "examples": [
+      {
+       "caption": "kurdele",
+       "e": "🎀",
+       "line": "[excited] Oo! Başka neler pembe? Bakın! İşte bir kurdele! [excited] Yaşasın! Kurdele pembe!",
+       "answer": "[excited] Vay! Kurdele pembe!"
+      },
+      {
+       "caption": "flamingo",
+       "line": "[excited] Oo! Başka neler pembe? Bakın! İşte bir flamingo! [excited] Yaşasın! Flamingo pembe!",
+       "answer": "[excited] Vay! Flamingo pembe!"
+      },
+      {
+       "caption": "çiçek",
+       "line": "[excited] Oo! Başka neler pembe? Bakın! İşte bir çiçek! [excited] Yaşasın! Çiçek pembe!",
+       "answer": "[excited] Vay! Çiçek pembe!"
+      }
+     ]
+    },
+    "brown": {
+     "name": "kahverengi",
+     "label": "KAHVERENGİ",
+     "phrase": "oyuncak ayı gibi sımsıcak",
+     "reveal": "[excited] Vay! İşte kahverengi! [excited] Yaşasın! Kahverengi, oyuncak ayı gibi sımsıcak bir renk!",
+     "quiz": "[excited] Yaşasın, oyun zamanı! Aa, hangisi kahverengi? [whisper] Çok ama çok dikkatli bakın...",
+     "review_answer": "[excited] Yaşasın! Bu kahverengi!",
+     "which_one": "Hangisi kahverengi?",
+     "its": "İşte kahverengi!",
+     "examples": [
+      {
+       "caption": "oyuncak ayı",
+       "line": "[excited] Oo! Başka neler kahverengi? Bakın! İşte bir oyuncak ayı! [excited] Yaşasın! Oyuncak ayı kahverengi!",
+       "answer": "[excited] Vay! Oyuncak ayı kahverengi!"
+      },
+      {
+       "caption": "kurabiye",
+       "line": "[excited] Oo! Başka neler kahverengi? Bakın! İşte bir kurabiye! [excited] Yaşasın! Kurabiye kahverengi!",
+       "answer": "[excited] Vay! Kurabiye kahverengi!"
+      },
+      {
+       "caption": "ayı",
+       "line": "[excited] Oo! Başka neler kahverengi? Bakın! İşte bir ayı! [excited] Yaşasın! Ayı kahverengi!",
+       "answer": "[excited] Vay! Ayı kahverengi!"
+      }
+     ]
+    }
+   }
+  },
+  "EP-ANIMALS-MEGA-V1": {
+   "title": "Komik Hayvan Sesleri Partisi! 🐮 Çocuklar İçin Hayvanları Öğreniyoruz",
+   "thumb_text": "Hayvan Sesleri!",
+   "learning_objective": "Sekiz hayvanı tanımak ve çıkardıkları sesleri öğrenmek",
+   "tags": [
+    "hayvan sesleri",
+    "hayvanları öğreniyorum",
+    "çiftlik hayvanları",
+    "çocuklar için hayvanlar",
+    "okul öncesi eğitim",
+    "eğitici çocuk videoları",
+    "çocuk şarkıları"
+   ],
+   "intro": "[excited] Vay! Merhaba, merhaba minik arkadaşlarım! Ben Baykuş Lumi! [excited] Yaşasın! Bugün bir sürü hayvan arkadaşımızı ziyaret ediyoruz! Adlarını öğreneceğiz, komik seslerini taklit edeceğiz ve tahmin oyunları oynayacağız! [whisper] Hazır mısınız? [excited] Hadi başlayalım!",
+   "mystery": "[excited] Oo! Kim saklanıyor acaba? [whisper] Şşş... hep birlikte sayalım!",
+   "repeat": "[excited] Oo, benimle birlikte söyleyin! {K}! [excited] Daha yüksek sesle! {K}! [whisper] Vay, harikasınız!",
+   "review_q": "[excited] Oo! Bu kim? Yüksek sesle söyleyin!",
+   "chant": "[excited] Oley! Şimdi bütün hayvan arkadaşlarımızı hep birlikte söyleyelim!",
+   "dance": "[excited] Yuppi! Dans molası! Ördek gibi kanat çırpın! Fil gibi güm güm yürüyün! Tavşan gibi zıplayın! [whisper] Çok güzel yapıyorsunuz!",
+   "outro": "[excited] Vay, vay, vay! Bugün ne çok hayvan arkadaşla tanıştınız! [whisper] Sizinle çok gurur duyuyorum. Kendinize kocaman sarılın. [excited] Yaşasın! Bir dahaki sefere görüşürüz! Hoşça kalın!",
+   "ui": {
+    "guess_next": "Sıradaki hayvanı tahmin edin!",
+    "what_is_this": "Bu hangi hayvan?"
+   },
+   "items": {
+    "cow": {
+     "name": "inek",
+     "label": "İNEK",
+     "phrase": "möö möö der",
+     "reveal": "[excited] Vay! Bu bir inek! [excited] İnek möö möö der!",
+     "quiz": "[excited] Yaşasın, oyun zamanı! Aa, inek hangisi? [whisper] Çok ama çok dikkatli bakın...",
+     "review_answer": "[excited] Yaşasın! Bu inek!",
+     "which_one": "İnek hangisi?",
+     "its": "İşte inek!",
+     "answer": "[excited] Vay! Evet, bu inek!",
+     "examples": [
+      {
+       "caption": "İnek",
+       "line": "[excited] Oo! İnek çiftlikte yaşar."
+      },
+      {
+       "caption": "İnek",
+       "line": "[excited] Bakın! İnek bize süt verir."
+      },
+      {
+       "caption": "İnek",
+       "line": "[excited] Vay! İnek çimen yemeyi çok sever."
+      }
+     ]
+    },
+    "dog": {
+     "name": "köpek",
+     "label": "KÖPEK",
+     "phrase": "hav hav der",
+     "reveal": "[excited] Vay! Bu bir köpek! [excited] Köpek hav hav der!",
+     "quiz": "[excited] Yaşasın, oyun zamanı! Aa, köpek hangisi? [whisper] Çok ama çok dikkatli bakın...",
+     "review_answer": "[excited] Yaşasın! Bu köpek!",
+     "which_one": "Köpek hangisi?",
+     "its": "İşte köpek!",
+     "answer": "[excited] Vay! Evet, bu köpek!",
+     "examples": [
+      {
+       "caption": "Köpek",
+       "line": "[excited] Oo! Köpek kuyruğunu sallar."
+      },
+      {
+       "caption": "Köpek",
+       "line": "[excited] Bakın! Köpek kemiğini çok sever."
+      },
+      {
+       "caption": "Köpek",
+       "line": "[excited] Vay! Köpek topla oynar."
+      }
+     ]
+    },
+    "cat": {
+     "name": "kedi",
+     "label": "KEDİ",
+     "phrase": "miyav miyav der",
+     "reveal": "[excited] Vay! Bu bir kedi! [excited] Kedi miyav miyav der!",
+     "quiz": "[excited] Yaşasın, oyun zamanı! Aa, kedi hangisi? [whisper] Çok ama çok dikkatli bakın...",
+     "review_answer": "[excited] Yaşasın! Bu kedi!",
+     "which_one": "Kedi hangisi?",
+     "its": "İşte kedi!",
+     "answer": "[excited] Vay! Evet, bu kedi!",
+     "examples": [
+      {
+       "caption": "Kedi",
+       "line": "[excited] Oo! Kedi yumuşacık ve pofuduk."
+      },
+      {
+       "caption": "Kedi",
+       "line": "[excited] Bakın! Kedi yün yumağıyla oynar."
+      },
+      {
+       "caption": "Kedi",
+       "line": "[excited] Vay! Kedi balığı çok sever."
+      }
+     ]
+    },
+    "duck": {
+     "name": "ördek",
+     "label": "ÖRDEK",
+     "phrase": "vak vak der",
+     "reveal": "[excited] Vay! Bu bir ördek! [excited] Ördek vak vak der!",
+     "quiz": "[excited] Yaşasın, oyun zamanı! Aa, ördek hangisi? [whisper] Çok ama çok dikkatli bakın...",
+     "review_answer": "[excited] Yaşasın! Bu ördek!",
+     "which_one": "Ördek hangisi?",
+     "its": "İşte ördek!",
+     "answer": "[excited] Vay! Evet, bu ördek!",
+     "examples": [
+      {
+       "caption": "Ördek",
+       "line": "[excited] Oo! Ördek gölette yüzer."
+      },
+      {
+       "caption": "Ördek",
+       "line": "[excited] Bakın! Ördek suyu çok sever."
+      },
+      {
+       "caption": "Ördek",
+       "line": "[excited] Vay! Yavru ördek minicik!"
+      }
+     ]
+    },
+    "sheep": {
+     "name": "koyun",
+     "label": "KOYUN",
+     "phrase": "mee mee der",
+     "reveal": "[excited] Vay! Bu bir koyun! [excited] Koyun mee mee der!",
+     "quiz": "[excited] Yaşasın, oyun zamanı! Aa, koyun hangisi? [whisper] Çok ama çok dikkatli bakın...",
+     "review_answer": "[excited] Yaşasın! Bu koyun!",
+     "which_one": "Koyun hangisi?",
+     "its": "İşte koyun!",
+     "answer": "[excited] Vay! Evet, bu koyun!",
+     "examples": [
+      {
+       "caption": "Koyun",
+       "line": "[excited] Oo! Koyunun yumuşacık yünü var."
+      },
+      {
+       "caption": "Koyun",
+       "line": "[excited] Bakın! Koyun bir buluta benziyor."
+      },
+      {
+       "caption": "Koyun",
+       "line": "[excited] Vay! Koyun çimen yer."
+      }
+     ]
+    },
+    "pig": {
+     "name": "at",
+     "label": "AT",
+     "phrase": "iiihaa diye kişner",
+     "pic": "🐴",
+     "reveal": "[excited] Vay! Bu bir at! [excited] At iiihaa diye kişner!",
+     "quiz": "[excited] Yaşasın, oyun zamanı! Oo, hangisi at? [whisper] Çok, çok dikkatli bakın...",
+     "review_answer": "[excited] Yaşasın! Bu at!",
+     "which_one": "Hangisi at?",
+     "its": "Bu at!",
+     "answer": "[excited] Vay! İşte at!",
+     "examples": [
+      {
+       "caption": "At",
+       "e": "🐴",
+       "line": "[excited] Oo! At çok hızlı koşar."
+      },
+      {
+       "caption": "At",
+       "e": "🥕",
+       "line": "[excited] Bakın! At havuç yemeyi çok sever."
+      },
+      {
+       "caption": "At",
+       "e": "🌾",
+       "line": "[excited] Vay! At saman yer."
+      }
+     ]
+    },
+    "lion": {
+     "name": "aslan",
+     "label": "ASLAN",
+     "phrase": "grrr diye kükrer",
+     "reveal": "[excited] Vay! Bu bir aslan! [excited] Aslan grrr diye kükrer!",
+     "quiz": "[excited] Yaşasın, oyun zamanı! Aa, aslan hangisi? [whisper] Çok ama çok dikkatli bakın...",
+     "review_answer": "[excited] Yaşasın! Bu aslan!",
+     "which_one": "Aslan hangisi?",
+     "its": "İşte aslan!",
+     "answer": "[excited] Vay! Evet, bu aslan!",
+     "examples": [
+      {
+       "caption": "Aslan",
+       "line": "[excited] Oo! Aslanın kocaman bir yelesi var."
+      },
+      {
+       "caption": "Aslan",
+       "line": "[excited] Bakın! Aslan ormanlar kralıdır."
+      },
+      {
+       "caption": "Aslan",
+       "line": "[excited] Vay! Aslan güneşte uyur."
+      }
+     ]
+    },
+    "frog": {
+     "name": "kurbağa",
+     "label": "KURBAĞA",
+     "phrase": "vırak vırak der",
+     "reveal": "[excited] Vay! Bu bir kurbağa! [excited] Kurbağa vırak vırak der!",
+     "quiz": "[excited] Yaşasın, oyun zamanı! Aa, kurbağa hangisi? [whisper] Çok ama çok dikkatli bakın...",
+     "review_answer": "[excited] Yaşasın! Bu kurbağa!",
+     "which_one": "Kurbağa hangisi?",
+     "its": "İşte kurbağa!",
+     "answer": "[excited] Vay! Evet, bu kurbağa!",
+     "examples": [
+      {
+       "caption": "Kurbağa",
+       "line": "[excited] Oo! Kurbağa yeşil."
+      },
+      {
+       "caption": "Kurbağa",
+       "line": "[excited] Bakın! Kurbağa böcek yakalar."
+      },
+      {
+       "caption": "Kurbağa",
+       "line": "[excited] Vay! Kurbağa yaprağın üstüne zıplar."
+      }
+     ]
+    }
+   }
+  }
+ }
+}

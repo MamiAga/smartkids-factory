@@ -1,0 +1,530 @@
+{
+ "language": "DE",
+ "ref_text": "Hallo, meine kleinen Freunde! Wow, schaut mal, all die schönen Farben! Findet ihr Rot? Juhu, geschafft! Jetzt zählen wir zusammen: eins, zwei, drei! Hurra, super gemacht!",
+ "interjections": [
+  "Wow",
+  "Oh",
+  "Ooh",
+  "Juhu",
+  "Oh-oh",
+  "Schaut",
+  "Hurra",
+  "Juchhu",
+  "Hui",
+  "Hoppla"
+ ],
+ "praise": [
+  "[excited] Juhu! Super gemacht!",
+  "[excited] Juchhu! Wunderbar!",
+  "[excited] Wow! Fantastisch!",
+  "[excited] Juhu! Ihr seid Superstars!",
+  "[excited] Hurra! Gut gemacht!",
+  "[excited] Wow, toll!",
+  "[excited] Hui! Super!",
+  "[excited] Juhu, richtig! [whisper] So schlau!"
+ ],
+ "count_words": [
+  "[excited] Drei!",
+  "[excited] Zwei!",
+  "[excited] Eins!"
+ ],
+ "chapters": {
+  "hello": "Hallo von Lumi!",
+  "dance": "Tanzpause!",
+  "guess": "Ratespiel!",
+  "bonus": "Bonusrunde!",
+  "sing": "Mitsingen",
+  "bye": "Tschüss!"
+ },
+ "ui": {
+  "lets_play": "Lernen und spielen!",
+  "get_ready": "Macht euch bereit!",
+  "guess": "Ratet mal!",
+  "yes_great": "Ja! Super gemacht!",
+  "you_got_it": "Richtig!",
+  "shout": "Ruft es laut!",
+  "sing_along": "Singt mit!",
+  "sing_with_me": "Singt mit mir!",
+  "dance_break": "Tanzpause!",
+  "wiggle": "Wackeln und klatschen!",
+  "great_job": "Super gemacht!",
+  "see_you": "Bis zum nächsten Mal!",
+  "can_you_say": "Könnt ihr {Name} sagen?"
+ },
+ "meta": {
+  "description": "{title}\n\nKommt mit Lumi, der Eule, zu rund 10 Minuten voller Lieder, Ratespiele und Spaß! Die Kinder lernen: {words}.\nJeder Teil ist interaktiv: mit dem 3-2-1-Countdown raten, die Wörter laut nachsprechen und mittanzen.\n\nLernziel: {goal}.\nFür Eltern und Erzieher: Pausieren Sie nach jeder Frage und lassen Sie Ihr Kind zuerst antworten.\n\nKapitel:\n{chapters}\n\n{credits}\n#SmartKids #KinderLernen #Kleinkinder #Kita",
+  "credits": "Stimme: Chatterbox TTS (MIT License), Referenz-Erzählstimme erstellt mit Kokoro-82M (Apache License 2.0). Emoji-Grafiken: Noto Emoji (Apache License 2.0). Musik und Soundeffekte: original, erstellt von SmartKids."
+ },
+ "packs": {
+  "EP-COLORS-MEGA-V1": {
+   "title": "Farben-Tanzparty! 🍓 Farben lernen für Kleinkinder und Kindergartenkinder",
+   "thumb_text": "Farben-Party!",
+   "learning_objective": "Acht Farben an Alltagsgegenständen erkennen und benennen",
+   "tags": [
+    "Farben lernen",
+    "Farben lernen für Kinder",
+    "Farben für Kleinkinder",
+    "Lernvideos für Kleinkinder",
+    "Lernvideo für Kinder",
+    "Kinderlieder",
+    "Kindergarten lernen"
+   ],
+   "intro": "[excited] Wow! Hallo, hallo, meine kleinen Freunde! Ich bin Lumi, die Eule! [excited] Juhu! Heute erleben wir ein kunterbuntes Abenteuer! Wir finden acht schöne Farben, spielen Ratespiele und tanzen, tanzen, tanzen! [whisper] Seid ihr bereit? [excited] Los geht's!",
+   "mystery": "[excited] Ooh! Welche Farbe kommt jetzt? [whisper] Psst... wir zählen zusammen!",
+   "repeat": "[excited] Ooh, sagt es mit mir! {K}! [excited] Lauter! {K}! [whisper] Wow, ihr seid so gut!",
+   "review_q": "[excited] Ooh! Welche Farbe ist das? Ruft es laut!",
+   "chant": "[excited] Juchhu! Jetzt singen wir alle Farben zusammen!",
+   "dance": "[excited] Hui! Tanzpause! Wackelt mit den Armen! Stampft mit den Füßen! Klatsch, klatsch, klatsch! [whisper] Ihr macht das so toll!",
+   "outro": "[excited] Wow, wow, wow! Heute habt ihr acht Farben gelernt: Rot, Blau, Gelb, Grün, Lila, Orange, Rosa und Braun! [whisper] Ich bin so stolz auf euch. Drückt euch mal ganz fest. [excited] Juhu! Bis zum nächsten Mal! Tschüss!",
+   "ui": {
+    "guess_next": "Ratet die nächste Farbe!",
+    "what_is_this": "Welche Farbe ist das?"
+   },
+   "items": {
+    "red": {
+     "name": "rot",
+     "label": "ROT",
+     "phrase": "warm und leuchtend",
+     "reveal": "[excited] Wow! Das ist rot! [excited] Juhu! Rot ist warm und leuchtend!",
+     "quiz": "[excited] Juhu, Spielzeit! Oh-oh, welches ist rot? [whisper] Schaut ganz, ganz genau hin...",
+     "review_answer": "[excited] Juhu! Das ist rot!",
+     "which_one": "Welches ist rot?",
+     "its": "Das ist rot!",
+     "examples": [
+      {
+       "caption": "Apfel",
+       "line": "[excited] Oh! Was ist noch rot? Schaut mal! Ein Apfel! [excited] Juhu! Der Apfel ist rot!",
+       "answer": "[excited] Wow! Der Apfel ist rot!"
+      },
+      {
+       "caption": "Feuerwehrauto",
+       "line": "[excited] Oh! Was ist noch rot? Schaut mal! Ein Feuerwehrauto! [excited] Juhu! Das Feuerwehrauto ist rot!",
+       "answer": "[excited] Wow! Das Feuerwehrauto ist rot!"
+      },
+      {
+       "caption": "Erdbeere",
+       "line": "[excited] Oh! Was ist noch rot? Schaut mal! Eine Erdbeere! [excited] Juhu! Die Erdbeere ist rot!",
+       "answer": "[excited] Wow! Die Erdbeere ist rot!"
+      }
+     ]
+    },
+    "blue": {
+     "name": "blau",
+     "label": "BLAU",
+     "phrase": "kühl wie das Meer",
+     "reveal": "[excited] Wow! Das ist blau! [excited] Juhu! Blau ist kühl wie das Meer!",
+     "quiz": "[excited] Juhu, Spielzeit! Oh-oh, welches ist blau? [whisper] Schaut ganz, ganz genau hin...",
+     "review_answer": "[excited] Juhu! Das ist blau!",
+     "which_one": "Welches ist blau?",
+     "its": "Das ist blau!",
+     "examples": [
+      {
+       "caption": "Wal",
+       "line": "[excited] Oh! Was ist noch blau? Schaut mal! Ein Wal! [excited] Juhu! Der Wal ist blau!",
+       "answer": "[excited] Wow! Der Wal ist blau!"
+      },
+      {
+       "caption": "Blaubeere",
+       "line": "[excited] Oh! Was ist noch blau? Schaut mal! Eine Blaubeere! [excited] Juhu! Die Blaubeere ist blau!",
+       "answer": "[excited] Wow! Die Blaubeere ist blau!"
+      },
+      {
+       "caption": "Wassertropfen",
+       "line": "[excited] Oh! Was ist noch blau? Schaut mal! Ein Wassertropfen! [excited] Juhu! Der Wassertropfen ist blau!",
+       "answer": "[excited] Wow! Der Wassertropfen ist blau!"
+      }
+     ]
+    },
+    "yellow": {
+     "name": "gelb",
+     "label": "GELB",
+     "phrase": "sonnig und fröhlich",
+     "reveal": "[excited] Wow! Das ist gelb! [excited] Juhu! Gelb ist sonnig und fröhlich!",
+     "quiz": "[excited] Juhu, Spielzeit! Oh-oh, welches ist gelb? [whisper] Schaut ganz, ganz genau hin...",
+     "review_answer": "[excited] Juhu! Das ist gelb!",
+     "which_one": "Welches ist gelb?",
+     "its": "Das ist gelb!",
+     "examples": [
+      {
+       "caption": "Banane",
+       "line": "[excited] Oh! Was ist noch gelb? Schaut mal! Eine Banane! [excited] Juhu! Die Banane ist gelb!",
+       "answer": "[excited] Wow! Die Banane ist gelb!"
+      },
+      {
+       "caption": "Küken",
+       "line": "[excited] Oh! Was ist noch gelb? Schaut mal! Ein Küken! [excited] Juhu! Das Küken ist gelb!",
+       "answer": "[excited] Wow! Das Küken ist gelb!"
+      },
+      {
+       "caption": "Sonne",
+       "line": "[excited] Oh! Was ist noch gelb? Schaut mal! Die Sonne! [excited] Juhu! Die Sonne ist gelb!",
+       "answer": "[excited] Wow! Die Sonne ist gelb!"
+      }
+     ]
+    },
+    "green": {
+     "name": "grün",
+     "label": "GRÜN",
+     "phrase": "frisch wie das Gras",
+     "reveal": "[excited] Wow! Das ist grün! [excited] Juhu! Grün ist frisch wie das Gras!",
+     "quiz": "[excited] Juhu, Spielzeit! Oh-oh, welches ist grün? [whisper] Schaut ganz, ganz genau hin...",
+     "review_answer": "[excited] Juhu! Das ist grün!",
+     "which_one": "Welches ist grün?",
+     "its": "Das ist grün!",
+     "examples": [
+      {
+       "caption": "Frosch",
+       "line": "[excited] Oh! Was ist noch grün? Schaut mal! Ein Frosch! [excited] Juhu! Der Frosch ist grün!",
+       "answer": "[excited] Wow! Der Frosch ist grün!"
+      },
+      {
+       "caption": "Brokkoli",
+       "line": "[excited] Oh! Was ist noch grün? Schaut mal! Ein Brokkoli! [excited] Juhu! Der Brokkoli ist grün!",
+       "answer": "[excited] Wow! Der Brokkoli ist grün!"
+      },
+      {
+       "caption": "Kleeblatt",
+       "line": "[excited] Oh! Was ist noch grün? Schaut mal! Ein Kleeblatt! [excited] Juhu! Das Kleeblatt ist grün!",
+       "answer": "[excited] Wow! Das Kleeblatt ist grün!"
+      }
+     ]
+    },
+    "purple": {
+     "name": "lila",
+     "label": "LILA",
+     "phrase": "königlich und zauberhaft",
+     "reveal": "[excited] Wow! Das ist lila! [excited] Juhu! Lila ist königlich und zauberhaft!",
+     "quiz": "[excited] Juhu, Spielzeit! Oh-oh, welches ist lila? [whisper] Schaut ganz, ganz genau hin...",
+     "review_answer": "[excited] Juhu! Das ist lila!",
+     "which_one": "Welches ist lila?",
+     "its": "Das ist lila!",
+     "examples": [
+      {
+       "caption": "Weintraube",
+       "line": "[excited] Oh! Was ist noch lila? Schaut mal! Eine Weintraube! [excited] Juhu! Die Weintraube ist lila!",
+       "answer": "[excited] Wow! Die Weintraube ist lila!"
+      },
+      {
+       "caption": "Aubergine",
+       "line": "[excited] Oh! Was ist noch lila? Schaut mal! Eine Aubergine! [excited] Juhu! Die Aubergine ist lila!",
+       "answer": "[excited] Wow! Die Aubergine ist lila!"
+      },
+      {
+       "caption": "Regenschirm",
+       "line": "[excited] Oh! Was ist noch lila? Schaut mal! Ein Regenschirm! [excited] Juhu! Der Regenschirm ist lila!",
+       "answer": "[excited] Wow! Der Regenschirm ist lila!"
+      }
+     ]
+    },
+    "orange": {
+     "name": "orange",
+     "label": "ORANGE",
+     "phrase": "fröhlich und strahlend",
+     "reveal": "[excited] Wow! Das ist orange! [excited] Juhu! Orange ist fröhlich und strahlend!",
+     "quiz": "[excited] Juhu, Spielzeit! Oh-oh, welches ist orange? [whisper] Schaut ganz, ganz genau hin...",
+     "review_answer": "[excited] Juhu! Das ist orange!",
+     "which_one": "Welches ist orange?",
+     "its": "Das ist orange!",
+     "examples": [
+      {
+       "caption": "Karotte",
+       "line": "[excited] Oh! Was ist noch orange? Schaut mal! Eine Karotte! [excited] Juhu! Die Karotte ist orange!",
+       "answer": "[excited] Wow! Die Karotte ist orange!"
+      },
+      {
+       "caption": "Kürbis",
+       "line": "[excited] Oh! Was ist noch orange? Schaut mal! Ein Kürbis! [excited] Juhu! Der Kürbis ist orange!",
+       "answer": "[excited] Wow! Der Kürbis ist orange!"
+      },
+      {
+       "caption": "Orange",
+       "line": "[excited] Oh! Was ist noch orange? Schaut mal! Eine Orange! [excited] Juhu! Die Orange ist orange!",
+       "answer": "[excited] Wow! Die Orange ist orange!"
+      }
+     ]
+    },
+    "pink": {
+     "name": "rosa",
+     "label": "ROSA",
+     "phrase": "zart und süß",
+     "reveal": "[excited] Wow! Das ist rosa! [excited] Juhu! Rosa ist zart und süß!",
+     "quiz": "[excited] Juhu, Spielzeit! Oh-oh, welches ist rosa? [whisper] Schaut ganz, ganz genau hin...",
+     "review_answer": "[excited] Juhu! Das ist rosa!",
+     "which_one": "Welches ist rosa?",
+     "its": "Das ist rosa!",
+     "examples": [
+      {
+       "caption": "Schweinchen",
+       "line": "[excited] Oh! Was ist noch rosa? Schaut mal! Ein Schweinchen! [excited] Juhu! Das Schweinchen ist rosa!",
+       "answer": "[excited] Wow! Das Schweinchen ist rosa!"
+      },
+      {
+       "caption": "Flamingo",
+       "line": "[excited] Oh! Was ist noch rosa? Schaut mal! Ein Flamingo! [excited] Juhu! Der Flamingo ist rosa!",
+       "answer": "[excited] Wow! Der Flamingo ist rosa!"
+      },
+      {
+       "caption": "Blume",
+       "line": "[excited] Oh! Was ist noch rosa? Schaut mal! Eine Blume! [excited] Juhu! Die Blume ist rosa!",
+       "answer": "[excited] Wow! Die Blume ist rosa!"
+      }
+     ]
+    },
+    "brown": {
+     "name": "braun",
+     "label": "BRAUN",
+     "phrase": "kuschelig wie ein Teddybär",
+     "reveal": "[excited] Wow! Das ist braun! [excited] Juhu! Braun ist kuschelig wie ein Teddybär!",
+     "quiz": "[excited] Juhu, Spielzeit! Oh-oh, welches ist braun? [whisper] Schaut ganz, ganz genau hin...",
+     "review_answer": "[excited] Juhu! Das ist braun!",
+     "which_one": "Welches ist braun?",
+     "its": "Das ist braun!",
+     "examples": [
+      {
+       "caption": "Teddybär",
+       "line": "[excited] Oh! Was ist noch braun? Schaut mal! Ein Teddybär! [excited] Juhu! Der Teddybär ist braun!",
+       "answer": "[excited] Wow! Der Teddybär ist braun!"
+      },
+      {
+       "caption": "Keks",
+       "line": "[excited] Oh! Was ist noch braun? Schaut mal! Ein Keks! [excited] Juhu! Der Keks ist braun!",
+       "answer": "[excited] Wow! Der Keks ist braun!"
+      },
+      {
+       "caption": "Bär",
+       "line": "[excited] Oh! Was ist noch braun? Schaut mal! Ein Bär! [excited] Juhu! Der Bär ist braun!",
+       "answer": "[excited] Wow! Der Bär ist braun!"
+      }
+     ]
+    }
+   }
+  },
+  "EP-ANIMALS-MEGA-V1": {
+   "title": "Lustige Tierstimmen-Party! 🐮 Tiere lernen für Kleinkinder",
+   "thumb_text": "Tierstimmen!",
+   "learning_objective": "Acht Tiere benennen und ihre Laute nachmachen",
+   "tags": [
+    "Tierstimmen für Kinder",
+    "Tiere lernen",
+    "Bauernhoftiere für Kinder",
+    "Tiergeräusche",
+    "Lernvideo für Kinder",
+    "Kinderlieder",
+    "Kindergarten lernen"
+   ],
+   "intro": "[excited] Wow! Hallo, hallo, meine kleinen Freunde! Ich bin Lumi, die Eule! [excited] Juhu! Heute besuchen wir ganz viele Tierfreunde! Wir lernen ihre Namen, machen ihre lustigen Laute nach und spielen Ratespiele! [whisper] Seid ihr bereit? [excited] Los geht's!",
+   "mystery": "[excited] Ooh! Wer versteckt sich da? [whisper] Psst... wir zählen zusammen!",
+   "repeat": "[excited] Ooh, sagt es mit mir! {K}! [excited] Lauter! {K}! [whisper] Wow, ihr seid so gut!",
+   "review_q": "[excited] Ooh! Wer ist das? Ruft es laut!",
+   "chant": "[excited] Juchhu! Jetzt sagen wir alle unsere Tierfreunde zusammen!",
+   "dance": "[excited] Hui! Tanzpause! Flattert mit den Flügeln wie eine Ente! Stampft wie ein Elefant! Hüpft wie ein Hase! [whisper] Ihr macht das so toll!",
+   "outro": "[excited] Wow, wow, wow! Heute habt ihr so viele Tierfreunde getroffen! [whisper] Ich bin so stolz auf euch. Drückt euch mal ganz fest. [excited] Juhu! Bis zum nächsten Mal! Tschüss!",
+   "ui": {
+    "guess_next": "Ratet das nächste Tier!",
+    "what_is_this": "Welches Tier ist das?"
+   },
+   "items": {
+    "cow": {
+     "name": "Kuh",
+     "label": "KUH",
+     "phrase": "macht muh, muh",
+     "reveal": "[excited] Wow! Das ist eine Kuh! [excited] Die Kuh macht muh, muh!",
+     "quiz": "[excited] Juhu, Spielzeit! Oh-oh, wo ist die Kuh? [whisper] Schaut ganz, ganz genau hin...",
+     "review_answer": "[excited] Juhu! Das ist die Kuh!",
+     "which_one": "Wo ist die Kuh?",
+     "its": "Das ist die Kuh!",
+     "answer": "[excited] Wow! Das ist die Kuh!",
+     "examples": [
+      {
+       "caption": "Kuh",
+       "line": "[excited] Oh! Die Kuh wohnt auf dem Bauernhof."
+      },
+      {
+       "caption": "Kuh",
+       "line": "[excited] Schaut mal! Die Kuh gibt uns Milch."
+      },
+      {
+       "caption": "Kuh",
+       "line": "[excited] Wow! Die Kuh frisst so gern Gras."
+      }
+     ]
+    },
+    "dog": {
+     "name": "Hund",
+     "label": "HUND",
+     "phrase": "macht wau, wau",
+     "reveal": "[excited] Wow! Das ist ein Hund! [excited] Der Hund macht wau, wau!",
+     "quiz": "[excited] Juhu, Spielzeit! Oh-oh, wo ist der Hund? [whisper] Schaut ganz, ganz genau hin...",
+     "review_answer": "[excited] Juhu! Das ist der Hund!",
+     "which_one": "Wo ist der Hund?",
+     "its": "Das ist der Hund!",
+     "answer": "[excited] Wow! Das ist der Hund!",
+     "examples": [
+      {
+       "caption": "Hund",
+       "line": "[excited] Oh! Der Hund wedelt mit dem Schwanz."
+      },
+      {
+       "caption": "Hund",
+       "line": "[excited] Schaut mal! Der Hund liebt seinen Knochen."
+      },
+      {
+       "caption": "Hund",
+       "line": "[excited] Wow! Der Hund spielt mit einem Ball."
+      }
+     ]
+    },
+    "cat": {
+     "name": "Katze",
+     "label": "KATZE",
+     "phrase": "macht miau, miau",
+     "reveal": "[excited] Wow! Das ist eine Katze! [excited] Die Katze macht miau, miau!",
+     "quiz": "[excited] Juhu, Spielzeit! Oh-oh, wo ist die Katze? [whisper] Schaut ganz, ganz genau hin...",
+     "review_answer": "[excited] Juhu! Das ist die Katze!",
+     "which_one": "Wo ist die Katze?",
+     "its": "Das ist die Katze!",
+     "answer": "[excited] Wow! Das ist die Katze!",
+     "examples": [
+      {
+       "caption": "Katze",
+       "line": "[excited] Oh! Die Katze ist weich und flauschig."
+      },
+      {
+       "caption": "Katze",
+       "line": "[excited] Schaut mal! Die Katze spielt mit Wolle."
+      },
+      {
+       "caption": "Katze",
+       "line": "[excited] Wow! Die Katze mag Fisch."
+      }
+     ]
+    },
+    "duck": {
+     "name": "Ente",
+     "label": "ENTE",
+     "phrase": "macht quak, quak",
+     "reveal": "[excited] Wow! Das ist eine Ente! [excited] Die Ente macht quak, quak!",
+     "quiz": "[excited] Juhu, Spielzeit! Oh-oh, wo ist die Ente? [whisper] Schaut ganz, ganz genau hin...",
+     "review_answer": "[excited] Juhu! Das ist die Ente!",
+     "which_one": "Wo ist die Ente?",
+     "its": "Das ist die Ente!",
+     "answer": "[excited] Wow! Das ist die Ente!",
+     "examples": [
+      {
+       "caption": "Ente",
+       "line": "[excited] Oh! Die Ente schwimmt im Teich."
+      },
+      {
+       "caption": "Ente",
+       "line": "[excited] Schaut mal! Die Ente liebt Wasser."
+      },
+      {
+       "caption": "Ente",
+       "line": "[excited] Wow! Das Entenküken ist so klein."
+      }
+     ]
+    },
+    "sheep": {
+     "name": "Schaf",
+     "label": "SCHAF",
+     "phrase": "macht mäh, mäh",
+     "reveal": "[excited] Wow! Das ist ein Schaf! [excited] Das Schaf macht mäh, mäh!",
+     "quiz": "[excited] Juhu, Spielzeit! Oh-oh, wo ist das Schaf? [whisper] Schaut ganz, ganz genau hin...",
+     "review_answer": "[excited] Juhu! Das ist das Schaf!",
+     "which_one": "Wo ist das Schaf?",
+     "its": "Das ist das Schaf!",
+     "answer": "[excited] Wow! Das ist das Schaf!",
+     "examples": [
+      {
+       "caption": "Schaf",
+       "line": "[excited] Oh! Das Schaf hat weiche Wolle."
+      },
+      {
+       "caption": "Schaf",
+       "line": "[excited] Schaut mal! Das Schaf sieht aus wie eine Wolke."
+      },
+      {
+       "caption": "Schaf",
+       "line": "[excited] Wow! Das Schaf frisst Gras."
+      }
+     ]
+    },
+    "pig": {
+     "name": "Schwein",
+     "label": "SCHWEIN",
+     "phrase": "macht grunz, grunz",
+     "reveal": "[excited] Wow! Das ist ein Schwein! [excited] Das Schwein macht grunz, grunz!",
+     "quiz": "[excited] Juhu, Spielzeit! Oh-oh, wo ist das Schwein? [whisper] Schaut ganz, ganz genau hin...",
+     "review_answer": "[excited] Juhu! Das ist das Schwein!",
+     "which_one": "Wo ist das Schwein?",
+     "its": "Das ist das Schwein!",
+     "answer": "[excited] Wow! Das ist das Schwein!",
+     "examples": [
+      {
+       "caption": "Schwein",
+       "line": "[excited] Oh! Das Schwein ist rosa."
+      },
+      {
+       "caption": "Schwein",
+       "line": "[excited] Schaut mal! Das Schwein frisst so gern."
+      },
+      {
+       "caption": "Schwein",
+       "line": "[excited] Wow! Das Schwein spielt im Matsch."
+      }
+     ]
+    },
+    "lion": {
+     "name": "Löwe",
+     "label": "LÖWE",
+     "phrase": "brüllt: roaaar",
+     "reveal": "[excited] Wow! Das ist ein Löwe! [excited] Der Löwe brüllt: roaaar!",
+     "quiz": "[excited] Juhu, Spielzeit! Oh-oh, wo ist der Löwe? [whisper] Schaut ganz, ganz genau hin...",
+     "review_answer": "[excited] Juhu! Das ist der Löwe!",
+     "which_one": "Wo ist der Löwe?",
+     "its": "Das ist der Löwe!",
+     "answer": "[excited] Wow! Das ist der Löwe!",
+     "examples": [
+      {
+       "caption": "Löwe",
+       "line": "[excited] Oh! Der Löwe hat eine große Mähne."
+      },
+      {
+       "caption": "Löwe",
+       "line": "[excited] Schaut mal! Der Löwe ist der König der Tiere."
+      },
+      {
+       "caption": "Löwe",
+       "line": "[excited] Wow! Der Löwe schläft in der Sonne."
+      }
+     ]
+    },
+    "frog": {
+     "name": "Frosch",
+     "label": "FROSCH",
+     "phrase": "macht quak, quak",
+     "reveal": "[excited] Wow! Das ist ein Frosch! [excited] Der Frosch macht quak, quak!",
+     "quiz": "[excited] Juhu, Spielzeit! Oh-oh, wo ist der Frosch? [whisper] Schaut ganz, ganz genau hin...",
+     "review_answer": "[excited] Juhu! Das ist der Frosch!",
+     "which_one": "Wo ist der Frosch?",
+     "its": "Das ist der Frosch!",
+     "answer": "[excited] Wow! Das ist der Frosch!",
+     "examples": [
+      {
+       "caption": "Frosch",
+       "line": "[excited] Oh! Der Frosch ist grün."
+      },
+      {
+       "caption": "Frosch",
+       "line": "[excited] Schaut mal! Der Frosch fängt Fliegen."
+      },
+      {
+       "caption": "Frosch",
+       "line": "[excited] Wow! Der Frosch hüpft auf ein Blatt."
+      }
+     ]
+    }
+   }
+  }
+ }
+}

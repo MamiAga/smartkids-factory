@@ -1,0 +1,530 @@
+{
+ "language": "IT",
+ "ref_text": "Ciao, piccoli amici! Wow, guardate quanti bei colori! Riuscite a trovare il rosso? Evviva, ce l'avete fatta! Adesso contiamo insieme: uno, due, tre! Urrà, che bravura!",
+ "interjections": [
+  "Wow",
+  "Oh",
+  "Ooh",
+  "Evviva",
+  "Oh-oh",
+  "Guarda",
+  "Urrà",
+  "Iuhuu",
+  "Yuppi",
+  "Shh"
+ ],
+ "praise": [
+  "[excited] Evviva! Ottimo lavoro!",
+  "[excited] Iuhuu! Meraviglioso!",
+  "[excited] Wow! Fantastico!",
+  "[excited] Evviva! Sei una superstella!",
+  "[excited] Urrà! Ben fatto!",
+  "[excited] Wow, incredibile!",
+  "[excited] Yuppi! Super!",
+  "[excited] Evviva, hai indovinato! [whisper] Che genio!"
+ ],
+ "count_words": [
+  "[excited] Tre!",
+  "[excited] Due!",
+  "[excited] Uno!"
+ ],
+ "chapters": {
+  "hello": "Ciao da Lumi!",
+  "dance": "Pausa ballo!",
+  "guess": "Gioca e indovina!",
+  "bonus": "Turno bonus!",
+  "sing": "Cantiamo insieme",
+  "bye": "Ciao ciao!"
+ },
+ "ui": {
+  "lets_play": "Impariamo e giochiamo!",
+  "get_ready": "Pronti, via!",
+  "guess": "Indovina!",
+  "yes_great": "Sì! Ottimo lavoro!",
+  "you_got_it": "Hai indovinato!",
+  "shout": "Dillo forte!",
+  "sing_along": "Canta con noi!",
+  "sing_with_me": "Canta con me!",
+  "dance_break": "Pausa ballo!",
+  "wiggle": "Muoviti e batti le mani!",
+  "great_job": "Ottimo lavoro!",
+  "see_you": "Alla prossima!",
+  "can_you_say": "Sai dire {Name}?"
+ },
+ "meta": {
+  "description": "{title}\n\nUnisciti al gufo Lumi per circa 10 minuti di canzoni, indovinelli e divertimento! I bambini imparano: {words}.\nOgni parte è interattiva: indovina con il conto alla rovescia 3-2-1, ripeti le parole ad alta voce e balla insieme a noi.\n\nObiettivo di apprendimento: {goal}.\nPer genitori e insegnanti della scuola dell'infanzia: fate una pausa dopo ogni domanda e lasciate che il bambino risponda per primo.\n\nCapitoli:\n{chapters}\n\n{credits}\n#SmartKids #VideoPerBambini #ScuolaDellInfanzia #ImparareGiocando",
+  "credits": "Voce: Chatterbox TTS (MIT License), voce di riferimento del narratore creata con Kokoro-82M (Apache License 2.0). Grafica emoji: Noto Emoji (Apache License 2.0). Musica ed effetti sonori: originali, generati da SmartKids."
+ },
+ "packs": {
+  "EP-COLORS-MEGA-V1": {
+   "title": "Festa dei Colori! 🍓 Impariamo i Colori per Bambini Piccoli",
+   "thumb_text": "Festa dei Colori!",
+   "learning_objective": "Riconoscere e nominare otto colori con oggetti di tutti i giorni.",
+   "tags": [
+    "impariamo i colori",
+    "colori per bambini",
+    "i colori in italiano",
+    "video educativi per bambini",
+    "canzoni per bambini",
+    "scuola dell'infanzia",
+    "bambini piccoli"
+   ],
+   "intro": "[excited] Wow! Ciao, ciao, piccoli amici! Sono il gufo Lumi! [excited] Evviva! Oggi partiamo per un'avventura tutta colorata! Troveremo otto colori bellissimi, giocheremo a indovinare e balleremo, balleremo, balleremo! [whisper] Ci siamo? [excited] Si parte!",
+   "mystery": "[excited] Ooh! Quale colore arriva adesso? [whisper] Shh... contiamo insieme!",
+   "repeat": "[excited] Ooh, dillo con me! {K}! [excited] Più forte! {K}! [whisper] Wow, che bravura!",
+   "review_q": "[excited] Ooh! Che colore è questo? Dillo forte!",
+   "chant": "[excited] Iuhuu! Adesso cantiamo tutti i colori insieme!",
+   "dance": "[excited] Yuppi! Pausa ballo! Muovi le braccia! Batti i piedi! Batti le mani, batti le mani, batti le mani! [whisper] Stai andando alla grande!",
+   "outro": "[excited] Wow, wow, wow! Oggi hai imparato otto colori: rosso, blu, giallo, verde, viola, arancione, rosa e marrone! [whisper] Mi rendi tanto felice. Fatti un grande abbraccio. [excited] Evviva! Alla prossima! Ciao ciao!",
+   "ui": {
+    "guess_next": "Indovina il prossimo colore!",
+    "what_is_this": "Che colore è questo?"
+   },
+   "items": {
+    "red": {
+     "name": "rosso",
+     "label": "ROSSO",
+     "phrase": "vivace e caldo",
+     "reveal": "[excited] Wow! È rosso! [excited] Evviva! Il rosso è vivace e caldo!",
+     "quiz": "[excited] Evviva, si gioca! Oh-oh, qual è quello rosso? [whisper] Guarda bene bene...",
+     "review_answer": "[excited] Evviva! È rosso!",
+     "which_one": "Qual è quello rosso?",
+     "its": "È rosso!",
+     "examples": [
+      {
+       "caption": "mela",
+       "line": "[excited] Oh! Cos'altro è rosso? Guarda! Una mela! [excited] Evviva! La mela è rossa!",
+       "answer": "[excited] Wow! La mela è rossa!"
+      },
+      {
+       "caption": "camion dei pompieri",
+       "line": "[excited] Oh! Cos'altro è rosso? Guarda! Un camion dei pompieri! [excited] Evviva! Il camion dei pompieri è rosso!",
+       "answer": "[excited] Wow! Il camion dei pompieri è rosso!"
+      },
+      {
+       "caption": "fragola",
+       "line": "[excited] Oh! Cos'altro è rosso? Guarda! Una fragola! [excited] Evviva! La fragola è rossa!",
+       "answer": "[excited] Wow! La fragola è rossa!"
+      }
+     ]
+    },
+    "blue": {
+     "name": "blu",
+     "label": "BLU",
+     "phrase": "calmo come il mare",
+     "reveal": "[excited] Wow! È blu! [excited] Evviva! Il blu è calmo come il mare!",
+     "quiz": "[excited] Evviva, si gioca! Oh-oh, qual è quello blu? [whisper] Guarda bene bene...",
+     "review_answer": "[excited] Evviva! È blu!",
+     "which_one": "Qual è quello blu?",
+     "its": "È blu!",
+     "examples": [
+      {
+       "caption": "balena",
+       "line": "[excited] Oh! Cos'altro è blu? Guarda! Una balena! [excited] Evviva! La balena è blu!",
+       "answer": "[excited] Wow! La balena è blu!"
+      },
+      {
+       "caption": "mirtillo",
+       "line": "[excited] Oh! Cos'altro è blu? Guarda! Un mirtillo! [excited] Evviva! Il mirtillo è blu!",
+       "answer": "[excited] Wow! Il mirtillo è blu!"
+      },
+      {
+       "caption": "goccia d'acqua",
+       "line": "[excited] Oh! Cos'altro è blu? Guarda! Una goccia d'acqua! [excited] Evviva! La goccia d'acqua è blu!",
+       "answer": "[excited] Wow! La goccia d'acqua è blu!"
+      }
+     ]
+    },
+    "yellow": {
+     "name": "giallo",
+     "label": "GIALLO",
+     "phrase": "allegro come il sole",
+     "reveal": "[excited] Wow! È giallo! [excited] Evviva! Il giallo è allegro come il sole!",
+     "quiz": "[excited] Evviva, si gioca! Oh-oh, qual è quello giallo? [whisper] Guarda bene bene...",
+     "review_answer": "[excited] Evviva! È giallo!",
+     "which_one": "Qual è quello giallo?",
+     "its": "È giallo!",
+     "examples": [
+      {
+       "caption": "banana",
+       "line": "[excited] Oh! Cos'altro è giallo? Guarda! Una banana! [excited] Evviva! La banana è gialla!",
+       "answer": "[excited] Wow! La banana è gialla!"
+      },
+      {
+       "caption": "pulcino",
+       "line": "[excited] Oh! Cos'altro è giallo? Guarda! Un pulcino! [excited] Evviva! Il pulcino è giallo!",
+       "answer": "[excited] Wow! Il pulcino è giallo!"
+      },
+      {
+       "caption": "sole",
+       "line": "[excited] Oh! Cos'altro è giallo? Guarda! Un sole! [excited] Evviva! Il sole è giallo!",
+       "answer": "[excited] Wow! Il sole è giallo!"
+      }
+     ]
+    },
+    "green": {
+     "name": "verde",
+     "label": "VERDE",
+     "phrase": "fresco come l'erba",
+     "reveal": "[excited] Wow! È verde! [excited] Evviva! Il verde è fresco come l'erba!",
+     "quiz": "[excited] Evviva, si gioca! Oh-oh, qual è quello verde? [whisper] Guarda bene bene...",
+     "review_answer": "[excited] Evviva! È verde!",
+     "which_one": "Qual è quello verde?",
+     "its": "È verde!",
+     "examples": [
+      {
+       "caption": "rana",
+       "line": "[excited] Oh! Cos'altro è verde? Guarda! Una rana! [excited] Evviva! La rana è verde!",
+       "answer": "[excited] Wow! La rana è verde!"
+      },
+      {
+       "caption": "broccolo",
+       "line": "[excited] Oh! Cos'altro è verde? Guarda! Un broccolo! [excited] Evviva! Il broccolo è verde!",
+       "answer": "[excited] Wow! Il broccolo è verde!"
+      },
+      {
+       "caption": "trifoglio",
+       "line": "[excited] Oh! Cos'altro è verde? Guarda! Un trifoglio! [excited] Evviva! Il trifoglio è verde!",
+       "answer": "[excited] Wow! Il trifoglio è verde!"
+      }
+     ]
+    },
+    "purple": {
+     "name": "viola",
+     "label": "VIOLA",
+     "phrase": "elegante e magico",
+     "reveal": "[excited] Wow! È viola! [excited] Evviva! Il viola è elegante e magico!",
+     "quiz": "[excited] Evviva, si gioca! Oh-oh, qual è quello viola? [whisper] Guarda bene bene...",
+     "review_answer": "[excited] Evviva! È viola!",
+     "which_one": "Qual è quello viola?",
+     "its": "È viola!",
+     "examples": [
+      {
+       "caption": "grappolo d'uva",
+       "line": "[excited] Oh! Cos'altro è viola? Guarda! Un grappolo d'uva! [excited] Evviva! Il grappolo d'uva è viola!",
+       "answer": "[excited] Wow! Il grappolo d'uva è viola!"
+      },
+      {
+       "caption": "melanzana",
+       "line": "[excited] Oh! Cos'altro è viola? Guarda! Una melanzana! [excited] Evviva! La melanzana è viola!",
+       "answer": "[excited] Wow! La melanzana è viola!"
+      },
+      {
+       "caption": "ombrello",
+       "line": "[excited] Oh! Cos'altro è viola? Guarda! Un ombrello! [excited] Evviva! L'ombrello è viola!",
+       "answer": "[excited] Wow! L'ombrello è viola!"
+      }
+     ]
+    },
+    "orange": {
+     "name": "arancione",
+     "label": "ARANCIONE",
+     "phrase": "succoso e brillante",
+     "reveal": "[excited] Wow! È arancione! [excited] Evviva! L'arancione è succoso e brillante!",
+     "quiz": "[excited] Evviva, si gioca! Oh-oh, qual è quello arancione? [whisper] Guarda bene bene...",
+     "review_answer": "[excited] Evviva! È arancione!",
+     "which_one": "Qual è quello arancione?",
+     "its": "È arancione!",
+     "examples": [
+      {
+       "caption": "carota",
+       "line": "[excited] Oh! Cos'altro è arancione? Guarda! Una carota! [excited] Evviva! La carota è arancione!",
+       "answer": "[excited] Wow! La carota è arancione!"
+      },
+      {
+       "caption": "zucca",
+       "line": "[excited] Oh! Cos'altro è arancione? Guarda! Una zucca! [excited] Evviva! La zucca è arancione!",
+       "answer": "[excited] Wow! La zucca è arancione!"
+      },
+      {
+       "caption": "arancia",
+       "line": "[excited] Oh! Cos'altro è arancione? Guarda! Un'arancia! [excited] Evviva! L'arancia è arancione!",
+       "answer": "[excited] Wow! L'arancia è arancione!"
+      }
+     ]
+    },
+    "pink": {
+     "name": "rosa",
+     "label": "ROSA",
+     "phrase": "dolce e delicato",
+     "reveal": "[excited] Wow! È rosa! [excited] Evviva! Il rosa è dolce e delicato!",
+     "quiz": "[excited] Evviva, si gioca! Oh-oh, qual è quello rosa? [whisper] Guarda bene bene...",
+     "review_answer": "[excited] Evviva! È rosa!",
+     "which_one": "Qual è quello rosa?",
+     "its": "È rosa!",
+     "examples": [
+      {
+       "caption": "maialino",
+       "line": "[excited] Oh! Cos'altro è rosa? Guarda! Un maialino! [excited] Evviva! Il maialino è rosa!",
+       "answer": "[excited] Wow! Il maialino è rosa!"
+      },
+      {
+       "caption": "fenicottero",
+       "line": "[excited] Oh! Cos'altro è rosa? Guarda! Un fenicottero! [excited] Evviva! Il fenicottero è rosa!",
+       "answer": "[excited] Wow! Il fenicottero è rosa!"
+      },
+      {
+       "caption": "fiore",
+       "line": "[excited] Oh! Cos'altro è rosa? Guarda! Un fiore! [excited] Evviva! Il fiore è rosa!",
+       "answer": "[excited] Wow! Il fiore è rosa!"
+      }
+     ]
+    },
+    "brown": {
+     "name": "marrone",
+     "label": "MARRONE",
+     "phrase": "morbido come un orsacchiotto",
+     "reveal": "[excited] Wow! È marrone! [excited] Evviva! Il marrone è morbido come un orsacchiotto!",
+     "quiz": "[excited] Evviva, si gioca! Oh-oh, qual è quello marrone? [whisper] Guarda bene bene...",
+     "review_answer": "[excited] Evviva! È marrone!",
+     "which_one": "Qual è quello marrone?",
+     "its": "È marrone!",
+     "examples": [
+      {
+       "caption": "orsacchiotto",
+       "line": "[excited] Oh! Cos'altro è marrone? Guarda! Un orsacchiotto! [excited] Evviva! L'orsacchiotto è marrone!",
+       "answer": "[excited] Wow! L'orsacchiotto è marrone!"
+      },
+      {
+       "caption": "biscotto",
+       "line": "[excited] Oh! Cos'altro è marrone? Guarda! Un biscotto! [excited] Evviva! Il biscotto è marrone!",
+       "answer": "[excited] Wow! Il biscotto è marrone!"
+      },
+      {
+       "caption": "orso",
+       "line": "[excited] Oh! Cos'altro è marrone? Guarda! Un orso! [excited] Evviva! L'orso è marrone!",
+       "answer": "[excited] Wow! L'orso è marrone!"
+      }
+     ]
+    }
+   }
+  },
+  "EP-ANIMALS-MEGA-V1": {
+   "title": "Festa dei Versi degli Animali! 🐮 Impariamo gli Animali per Bambini",
+   "thumb_text": "Versi degli Animali!",
+   "learning_objective": "Nominare otto animali e i versi che fanno.",
+   "tags": [
+    "versi degli animali",
+    "impariamo gli animali",
+    "animali della fattoria",
+    "animali per bambini",
+    "video educativi per bambini",
+    "canzoni per bambini",
+    "scuola dell'infanzia"
+   ],
+   "intro": "[excited] Wow! Ciao, ciao, piccoli amici! Sono il gufo Lumi! [excited] Evviva! Oggi andiamo a trovare tanti amici animali! Impareremo i loro nomi, imiteremo i loro versi buffi e giocheremo a indovinare! [whisper] Ci siamo? [excited] Si parte!",
+   "mystery": "[excited] Ooh! Chi si nasconde? [whisper] Shh... contiamo insieme!",
+   "repeat": "[excited] Ooh, dillo con me! {K}! [excited] Più forte! {K}! [whisper] Wow, che bravura!",
+   "review_q": "[excited] Ooh! Chi è questo? Dillo forte!",
+   "chant": "[excited] Iuhuu! Adesso diciamo insieme tutti i nostri amici animali!",
+   "dance": "[excited] Yuppi! Pausa ballo! Sbatti le ali come una papera! Pesta i piedi come un elefante! Salta come un coniglietto! [whisper] Stai andando alla grande!",
+   "outro": "[excited] Wow, wow, wow! Oggi hai conosciuto tanti amici animali! [whisper] Mi rendi tanto felice. Fatti un grande abbraccio. [excited] Evviva! Alla prossima! Ciao ciao!",
+   "ui": {
+    "guess_next": "Indovina il prossimo animale!",
+    "what_is_this": "Che animale è questo?"
+   },
+   "items": {
+    "cow": {
+     "name": "mucca",
+     "label": "MUCCA",
+     "phrase": "fa muu, muu",
+     "reveal": "[excited] Wow! È una mucca! [excited] La mucca fa muu, muu!",
+     "quiz": "[excited] Evviva, si gioca! Oh-oh, qual è la mucca? [whisper] Guarda bene bene...",
+     "review_answer": "[excited] Evviva! È la mucca!",
+     "which_one": "Qual è la mucca?",
+     "its": "È la mucca!",
+     "answer": "[excited] Wow! Quella è la mucca!",
+     "examples": [
+      {
+       "caption": "Mucca",
+       "line": "[excited] Oh! La mucca vive in fattoria."
+      },
+      {
+       "caption": "Mucca",
+       "line": "[excited] Guarda! La mucca ci dà il latte."
+      },
+      {
+       "caption": "Mucca",
+       "line": "[excited] Wow! La mucca adora mangiare l'erba."
+      }
+     ]
+    },
+    "dog": {
+     "name": "cane",
+     "label": "CANE",
+     "phrase": "fa bau bau",
+     "reveal": "[excited] Wow! È un cane! [excited] Il cane fa bau bau!",
+     "quiz": "[excited] Evviva, si gioca! Oh-oh, qual è il cane? [whisper] Guarda bene bene...",
+     "review_answer": "[excited] Evviva! È il cane!",
+     "which_one": "Qual è il cane?",
+     "its": "È il cane!",
+     "answer": "[excited] Wow! Quello è il cane!",
+     "examples": [
+      {
+       "caption": "Cane",
+       "line": "[excited] Oh! Il cane scodinzola."
+      },
+      {
+       "caption": "Cane",
+       "line": "[excited] Guarda! Il cane adora gli ossi."
+      },
+      {
+       "caption": "Cane",
+       "line": "[excited] Wow! Il cane gioca con la palla."
+      }
+     ]
+    },
+    "cat": {
+     "name": "gatto",
+     "label": "GATTO",
+     "phrase": "fa miao, miao",
+     "reveal": "[excited] Wow! È un gatto! [excited] Il gatto fa miao, miao!",
+     "quiz": "[excited] Evviva, si gioca! Oh-oh, qual è il gatto? [whisper] Guarda bene bene...",
+     "review_answer": "[excited] Evviva! È il gatto!",
+     "which_one": "Qual è il gatto?",
+     "its": "È il gatto!",
+     "answer": "[excited] Wow! Quello è il gatto!",
+     "examples": [
+      {
+       "caption": "Gatto",
+       "line": "[excited] Oh! Il gatto è morbido e soffice."
+      },
+      {
+       "caption": "Gatto",
+       "line": "[excited] Guarda! Il gatto gioca con il gomitolo."
+      },
+      {
+       "caption": "Gatto",
+       "line": "[excited] Wow! Al gatto piace il pesce."
+      }
+     ]
+    },
+    "duck": {
+     "name": "papera",
+     "label": "PAPERA",
+     "phrase": "fa qua qua",
+     "reveal": "[excited] Wow! È una papera! [excited] La papera fa qua qua!",
+     "quiz": "[excited] Evviva, si gioca! Oh-oh, qual è la papera? [whisper] Guarda bene bene...",
+     "review_answer": "[excited] Evviva! È la papera!",
+     "which_one": "Qual è la papera?",
+     "its": "È la papera!",
+     "answer": "[excited] Wow! Quella è la papera!",
+     "examples": [
+      {
+       "caption": "Papera",
+       "line": "[excited] Oh! La papera nuota nello stagno."
+      },
+      {
+       "caption": "Papera",
+       "line": "[excited] Guarda! La papera adora l'acqua."
+      },
+      {
+       "caption": "Papera",
+       "line": "[excited] Wow! Il paperotto è piccolo piccolo."
+      }
+     ]
+    },
+    "sheep": {
+     "name": "pecora",
+     "label": "PECORA",
+     "phrase": "fa beee, beee",
+     "reveal": "[excited] Wow! È una pecora! [excited] La pecora fa beee, beee!",
+     "quiz": "[excited] Evviva, si gioca! Oh-oh, qual è la pecora? [whisper] Guarda bene bene...",
+     "review_answer": "[excited] Evviva! È la pecora!",
+     "which_one": "Qual è la pecora?",
+     "its": "È la pecora!",
+     "answer": "[excited] Wow! Quella è la pecora!",
+     "examples": [
+      {
+       "caption": "Pecora",
+       "line": "[excited] Oh! La pecora ha la lana morbida."
+      },
+      {
+       "caption": "Pecora",
+       "line": "[excited] Guarda! La pecora sembra una nuvola."
+      },
+      {
+       "caption": "Pecora",
+       "line": "[excited] Wow! La pecora mangia l'erba."
+      }
+     ]
+    },
+    "pig": {
+     "name": "maiale",
+     "label": "MAIALE",
+     "phrase": "fa oink, oink",
+     "reveal": "[excited] Wow! È un maiale! [excited] Il maiale fa oink, oink!",
+     "quiz": "[excited] Evviva, si gioca! Oh-oh, qual è il maiale? [whisper] Guarda bene bene...",
+     "review_answer": "[excited] Evviva! È il maiale!",
+     "which_one": "Qual è il maiale?",
+     "its": "È il maiale!",
+     "answer": "[excited] Wow! Quello è il maiale!",
+     "examples": [
+      {
+       "caption": "Maiale",
+       "line": "[excited] Oh! Il maiale è rosa."
+      },
+      {
+       "caption": "Maiale",
+       "line": "[excited] Guarda! Il maiale adora mangiare."
+      },
+      {
+       "caption": "Maiale",
+       "line": "[excited] Wow! Il maiale gioca nel fango."
+      }
+     ]
+    },
+    "lion": {
+     "name": "leone",
+     "label": "LEONE",
+     "phrase": "fa roar",
+     "reveal": "[excited] Wow! È un leone! [excited] Il leone fa roar!",
+     "quiz": "[excited] Evviva, si gioca! Oh-oh, qual è il leone? [whisper] Guarda bene bene...",
+     "review_answer": "[excited] Evviva! È il leone!",
+     "which_one": "Qual è il leone?",
+     "its": "È il leone!",
+     "answer": "[excited] Wow! Quello è il leone!",
+     "examples": [
+      {
+       "caption": "Leone",
+       "line": "[excited] Oh! Il leone ha una grande criniera."
+      },
+      {
+       "caption": "Leone",
+       "line": "[excited] Guarda! Il leone è il re della giungla."
+      },
+      {
+       "caption": "Leone",
+       "line": "[excited] Wow! Il leone dorme al sole."
+      }
+     ]
+    },
+    "frog": {
+     "name": "rana",
+     "label": "RANA",
+     "phrase": "fa cra cra",
+     "reveal": "[excited] Wow! È una rana! [excited] La rana fa cra cra!",
+     "quiz": "[excited] Evviva, si gioca! Oh-oh, qual è la rana? [whisper] Guarda bene bene...",
+     "review_answer": "[excited] Evviva! È la rana!",
+     "which_one": "Qual è la rana?",
+     "its": "È la rana!",
+     "answer": "[excited] Wow! Quella è la rana!",
+     "examples": [
+      {
+       "caption": "Rana",
+       "line": "[excited] Oh! La rana è verde."
+      },
+      {
+       "caption": "Rana",
+       "line": "[excited] Guarda! La rana acchiappa gli insetti."
+      },
+      {
+       "caption": "Rana",
+       "line": "[excited] Wow! La rana salta su una foglia."
+      }
+     ]
+    }
+   }
+  }
+ }
+}
