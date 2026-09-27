@@ -1,24 +1,29 @@
 #!/usr/bin/env python3
-"""Chatterbox TTS worker with a distortion guard (runs in its own venv: needs numpy<2).
+"""Chatterbox narration worker with an acoustic + transcript quality guard (own venv: numpy<2).
 
 Protocol: stdin JSON lines {"text": "[excited] Wow! ...", "out": "/path.wav"}
-          stdout JSON lines {"ok": true, "dur": 3.2, "attempts": [...]}   (models load once)
+          stdout JSON lines {"ok": true, "dur": 3.2, "attempts": [...]}     (models load once)
 
 Env:
-  CB_REF_WAV        reference voice (e.g. a Kokoro female/male sample) -> narrator timbre
-  CB_EXAG_EXCITED   emotion intensity for [excited] lines (default 1.1)
+  CB_LANG         language code (en, es, pt, fr, de, it, tr, ru, ar, hi). en = original English model,
+                  others = Chatterbox Multilingual.
+  CB_REF_WAV      narrator reference clip (timbre)
+  CB_CFG_ZERO     "1" when the reference clip is in another language (stops accent transfer)
+  CB_WHISPER      faster-whisper model (base.en for EN, small for the others)
+  CB_METRIC       wer | cer        CB_MAX_ERR  e.g. 0.25
+  CB_DIGITS       JSON {"3": "three", ...} so "3" in a transcript matches "three" in the script
 
-Distortion guard (why: at high emotion Chatterbox sometimes produces garbled / growling audio):
-  every sentence is generated up to 4 times; each take is transcribed with Whisper (faster-whisper,
-  MIT) and must match the script (word error rate <= 0.25) and have a human speaking rate.
-  Takes 3-4 use a lower emotion level as a safer fallback. If no take passes -> error -> the job
-  fails its quality gate and nothing is published.
-Pace: accepted takes faster than the target words/sec are slowed with Rubber Band (pitch kept).
+What changed after the "robot voice" report (v3):
+  * NO time-stretching any more (Rubber Band made some lines sound phasey/robotic). Pace comes from
+    Chatterbox itself (lower cfg_weight = slower, calmer delivery) plus natural pauses between chunks.
+  * NO mixing with another TTS engine inside a video. A line with no clean take fails the job instead
+    of being read by a different, flatter voice.
+  * Long lines are generated in short chunks (<= 14 words): short generations drift far less.
+  * Every take passes voice_guard: timbre drift / dip, flat robotic pitch, transcript and rate.
 """
 import json
 import os
 import re
-import subprocess
 import sys
 import tempfile
 
@@ -26,46 +31,43 @@ import numpy as np
 import soundfile as sf
 import torch
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import voice_guard as VG  # noqa: E402
+
 torch.set_num_threads(os.cpu_count() or 4)
-from chatterbox.tts import ChatterboxTTS  # noqa: E402
-from faster_whisper import WhisperModel  # noqa: E402
+LANG = os.getenv("CB_LANG", "en").lower()
+CFG_ZERO = os.getenv("CB_CFG_ZERO") == "1"
+METRIC = os.getenv("CB_METRIC", "wer")
+MAX_ERR = float(os.getenv("CB_MAX_ERR", "0.25"))
+DIGITS = json.loads(os.getenv("CB_DIGITS") or "{}")
+EXCITED = float(os.getenv("CB_EXAG_EXCITED", "1.0"))
+MAX_CHUNK_WORDS = 14
+ATTEMPTS = 6
 
-EXCITED = float(os.getenv("CB_EXAG_EXCITED", "1.1"))
-STYLES = {  # target_wps = words per second after pacing (2.2 wps ~ 132 wpm)
-    "excited": {"exaggeration": EXCITED, "cfg": 0.5, "gain": 1.0, "gap": 0.30, "target_wps": 2.3},
-    "calm": {"exaggeration": 0.6, "cfg": 0.5, "gain": 0.9, "gap": 0.40, "target_wps": 2.1},
-    "whisper": {"exaggeration": 0.4, "cfg": 0.5, "gain": 0.45, "gap": 0.45, "target_wps": 1.9},
+# pace without stretching: cfg 0.3 = slower, deliberate storyteller delivery (Chatterbox guidance)
+STYLES = {
+    "excited": {"exaggeration": EXCITED, "cfg": 0.3, "gain": 1.0, "gap": 0.28},
+    "calm": {"exaggeration": 0.55, "cfg": 0.4, "gain": 0.9, "gap": 0.38},
+    "whisper": {"exaggeration": 0.4, "cfg": 0.4, "gain": 0.5, "gap": 0.42},
 }
-MAX_WER = 0.25
-NUM = {"0": "zero", "1": "one", "2": "two", "3": "three", "4": "four", "5": "five", "6": "six",
-       "7": "seven", "8": "eight", "9": "nine", "10": "ten"}
+CHUNK_GAP = 0.16
 
-model = ChatterboxTTS.from_pretrained(device="cpu")
+if LANG == "en":
+    from chatterbox.tts import ChatterboxTTS  # noqa: E402
+    model = ChatterboxTTS.from_pretrained(device="cpu")
+else:
+    from chatterbox.mtl_tts import ChatterboxMultilingualTTS  # noqa: E402
+    model = ChatterboxMultilingualTTS.from_pretrained(device="cpu")
 ref = os.getenv("CB_REF_WAV")
 if ref:
     model.prepare_conditionals(ref, exaggeration=EXCITED)
-asr = WhisperModel("base.en", device="cpu", compute_type="int8")
-sys.stdout.write(json.dumps({"ready": True, "sr": model.sr, "ref": ref}) + "\n")
+spk = model.conds.t3.speaker_emb.detach().cpu().numpy().reshape(-1)
+REF_EMB = spk / (np.linalg.norm(spk) or 1.0)
+
+from faster_whisper import WhisperModel  # noqa: E402
+asr = WhisperModel(os.getenv("CB_WHISPER", "base.en" if LANG == "en" else "small"), device="cpu", compute_type="int8")
+sys.stdout.write(json.dumps({"ready": True, "sr": model.sr, "ref": ref, "lang": LANG, "cfg_zero": CFG_ZERO}) + "\n")
 sys.stdout.flush()
-
-
-def words(s: str):
-    s = re.sub(r"[^a-z0-9 ]+", " ", s.lower().replace("-", " ").replace("'", ""))
-    return [NUM.get(w, w) for w in s.split()]
-
-
-def wer(ref_text: str, hyp: str) -> float:
-    r, h = words(ref_text), words(hyp)
-    if not r:
-        return 0.0
-    d = list(range(len(h) + 1))
-    for i in range(1, len(r) + 1):
-        prev, d[0] = d[0], i
-        for j in range(1, len(h) + 1):
-            cur = d[j]
-            d[j] = min(d[j] + 1, d[j - 1] + 1, prev + (r[i - 1] != h[j - 1]))
-            prev = cur
-    return d[len(h)] / len(r)
 
 
 def trim(a, sr):
@@ -76,72 +78,91 @@ def trim(a, sr):
 def transcribe(a, sr) -> str:
     with tempfile.NamedTemporaryFile(suffix=".wav") as f:
         sf.write(f.name, a, sr)
-        segs, _ = asr.transcribe(f.name, language="en", beam_size=1, vad_filter=False)
+        segs, _ = asr.transcribe(f.name, language=LANG, beam_size=1, vad_filter=False)
         return " ".join(s.text for s in segs)
 
 
-def pace(a, sr, n_words, target_wps):
-    dur = len(a) / sr
-    wps = n_words / max(dur, 0.1)
-    if n_words < 3 or wps <= target_wps * 1.03:
-        return a
-    tempo = max(0.78, target_wps / wps)  # < 1 = slower, pitch preserved
-    with tempfile.TemporaryDirectory() as d:
-        src, dst = os.path.join(d, "a.wav"), os.path.join(d, "b.wav")
-        sf.write(src, a, sr)
-        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", src, "-af", f"rubberband=tempo={tempo:.3f}", dst],
-                       check=True)
-        b, _ = sf.read(dst, dtype="float32")
-    return b
+def chunks(body: str):
+    sents = [s for s in re.split(r"(?<=[.!?…؟।])\s+", body.strip()) if s]
+    out, cur = [], []
+    for s in sents:
+        if cur and len(" ".join(cur + [s]).split()) > MAX_CHUNK_WORDS:
+            out.append(" ".join(cur))
+            cur = []
+        cur.append(s)
+    if cur:
+        out.append(" ".join(cur))
+    return out
 
 
-def take(body, st, exag, seed, sr):
+def generate(text, exag, cfg, seed):
     torch.manual_seed(seed)
     with torch.inference_mode():
-        wav = model.generate(body, exaggeration=exag, cfg_weight=st["cfg"], temperature=0.7)
-    a = trim(wav.squeeze(0).numpy(), sr)
-    n = max(1, len(words(body)))
-    spw = (len(a) / sr) / n
+        if LANG == "en":
+            wav = model.generate(text, exaggeration=exag, cfg_weight=cfg, temperature=0.7)
+        else:
+            wav = model.generate(text, language_id=LANG, exaggeration=exag, cfg_weight=cfg, temperature=0.7)
+    return trim(wav.squeeze(0).numpy(), model.sr)
+
+
+def measure(a, sr, text):
+    n = max(1, len(VG.norm_words(text, DIGITS)))
+    dur = len(a) / sr
     heard = transcribe(a, sr)
-    w = wer(body, heard) if n >= 3 else (0.0 if set(words(body)) & set(words(heard)) or not heard.strip() else 1.0)
-    # Garbling shows up as wrong/extra words (caught by WER) or as long noisy tails. Short exclamations
-    # ("Hooray! Well done!") are naturally slow, so the upper bound is loose for short lines.
-    rate_ok = 0.18 <= spw <= (1.6 if n < 6 else 1.1)
-    return a, {"exag": exag, "seed": seed, "wer": round(w, 2), "sec_per_word": round(spw, 2), "heard": heard.strip()[:80],
-               "ok": w <= MAX_WER and rate_ok}
+    if n >= 3:
+        err = VG.text_error(text, heard, METRIC, DIGITS)
+    else:  # 1-2 word exclamations: must hear at least one of the words (or nothing odd)
+        err = 0.0 if (set(VG.norm_words(text, DIGITS)) & set(VG.norm_words(heard, DIGITS)) or not heard.strip()) else 1.0
+    a16 = VG.to16k(a, sr)
+    m = {"err": round(err, 2), "sec_per_word": round(dur / n, 2), "heard": heard.strip()[:80], "dur": round(dur, 2)}
+    short = dur < 1.0
+    if not short:
+        m.update(VG.speaker_drift(model.ve, a16, REF_EMB))
+        m.update(VG.flat_pitch(a16))
+    m["why"] = VG.judge({**{"sim_min": 1, "sim_drop": 0, "flat_sec": 0}, **m}, n, MAX_ERR, short)
+    m["ok"] = not m["why"]
+    return m
+
+
+def best_take(text, st, log):
+    tried = []
+    for attempt in range(ATTEMPTS):
+        calmer = attempt >= 3  # later attempts: less exaggeration = more stable voice
+        exag = st["exaggeration"] if not calmer else max(0.45, st["exaggeration"] * 0.7)
+        cfg = 0.0 if CFG_ZERO else (st["cfg"] if not calmer else min(0.5, st["cfg"] + 0.1))
+        a = generate(text, exag, cfg, 1000 + attempt * 17)
+        m = measure(a, model.sr, text)
+        m.update({"exag": round(exag, 2), "cfg": cfg, "attempt": attempt, "chunk": text[:50]})
+        log.append(m)
+        if m["ok"]:
+            return a
+        tried.append((m, a))
+    # nothing fully clean: accept only a take whose ONLY problem is the pace (voice + words are right)
+    for m, a in sorted(tried, key=lambda t: t[0]["err"]):
+        if all(w.startswith("rate") for w in m["why"]):
+            m["accepted_despite"] = m["why"]
+            return a
+    raise RuntimeError(f"DISTORTION_GUARD: no clean take for {text!r}: {log[-1]}")
 
 
 for line in sys.stdin:
     try:
         req = json.loads(line)
         sr = model.sr
-        chunks, log = [], []
+        pieces, log = [], []
         for tag, body in re.findall(r"(?:\[([a-z]+)\]\s*)?([^\[]+)", req["text"].strip()):
             body = body.strip()
             if not body:
                 continue
             st = STYLES.get(tag or "calm", STYLES["calm"])
-            best, takes = None, []
-            for attempt in range(4):
-                exag = st["exaggeration"] if attempt < 2 else max(0.5, st["exaggeration"] * 0.65)
-                a, info = take(body, st, exag, 1000 + attempt * 17, sr)
-                log.append(info)
-                takes.append((info["wer"], a))
-                if info["ok"]:
-                    best = a
-                    break
-            if best is None:
-                w, a = min(takes, key=lambda t: t[0])
-                if w <= MAX_WER:          # words are right, only the pace check failed -> still clean speech
-                    best = a
-                    log[-1]["accepted_on_wer"] = True
-                else:                     # caller falls back to the clean Kokoro voice for this line
-                    raise RuntimeError(f"DISTORTION_GUARD: no clean take for {body!r}: {log[-1]}")
-            best = pace(best, sr, len(words(body)), st["target_wps"])
-            chunks += [best * st["gain"], np.zeros(int(st["gap"] * sr), dtype=np.float32)]
-        samples = np.concatenate(chunks[:-1]).astype(np.float32)
+            parts = chunks(body)
+            for i, c in enumerate(parts):
+                a = best_take(c, st, log)
+                gap = CHUNK_GAP if i < len(parts) - 1 else st["gap"]
+                pieces += [a * st["gain"], np.zeros(int(gap * sr), dtype=np.float32)]
+        samples = np.concatenate(pieces[:-1]).astype(np.float32)
         sf.write(req["out"], samples, sr)
-        sys.stdout.write(json.dumps({"ok": True, "dur": len(samples) / sr, "attempts": log}) + "\n")
+        sys.stdout.write(json.dumps({"ok": True, "dur": len(samples) / sr, "attempts": log}, ensure_ascii=False) + "\n")
     except Exception as e:  # report, keep serving
-        sys.stdout.write(json.dumps({"ok": False, "error": str(e)[:400]}) + "\n")
+        sys.stdout.write(json.dumps({"ok": False, "error": str(e)[:600]}, ensure_ascii=False) + "\n")
     sys.stdout.flush()
