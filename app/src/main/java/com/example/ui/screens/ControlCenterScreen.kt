@@ -60,7 +60,11 @@ fun ControlCenterScreen(
     onSyncCloud: (() -> Unit)? = null,
     isSyncing: Boolean = false,
     onQuickDispatch: ((String, String) -> Unit)? = null,
-    onStepJob: ((PipelineJobEntity) -> Unit)? = null
+    onStepJob: ((PipelineJobEntity) -> Unit)? = null,
+    onSetDistributionMode: ((String) -> Unit)? = null,
+    onSetNarratorMode: ((String) -> Unit)? = null,
+    onSetShards: ((Int) -> Unit)? = null,
+    onTestDispatch: ((String, List<String>, String, String, Boolean) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val isEnabled = automationControl?.enabled ?: false
@@ -68,8 +72,12 @@ fun ControlCenterScreen(
     val activeLangsJson = automationControl?.activeLanguagesJson ?: "[\"EN\"]"
 
     var showQuickDispatchDialog by remember { mutableStateOf(false) }
-    var selectedDispatchLang by remember { mutableStateOf("EN") }
-    var selectedDispatchEpisode by remember { mutableStateOf("EP-COLORS-5-V1") }
+    var selectedDispatchLangs by remember { mutableStateOf(setOf("EN")) }
+    var selectedDispatchEpisode by remember { mutableStateOf("EP-ANIMALS-MEGA-V1") }
+    var dispatchDryRun by remember { mutableStateOf(false) }
+    val distributionMode = automationControl?.distributionMode ?: "MULTI_CHANNEL"
+    val narratorMode = automationControl?.narratorMode ?: "alternate"
+    val ttsShards = automationControl?.ttsShards ?: 8
 
     val activeLanguages = remember(activeLangsJson) {
         val list = mutableListOf<String>()
@@ -81,17 +89,17 @@ fun ControlCenterScreen(
         list
     }
 
-    val expectedVideos = dailyEpisodes * activeLanguages.size
+    // one multi-audio video carries every language as an audio track
+    val expectedVideos = if (distributionMode == "SINGLE_CHANNEL_MULTI_AUDIO") dailyEpisodes else dailyEpisodes * activeLanguages.size
+    val latestByLanguage = remember(jobs) { jobs.groupBy { it.languageCode }.mapValues { (_, v) -> v.maxByOrNull { it.updatedAt } } }
 
-    val producedCount = jobs.count { it.status in listOf("PUBLISHED", "COMPLETED", "PROCESSED", "PROCESSED_PRIVATE") }
-    val uploadingCount = jobs.count { it.status in listOf("UPLOADING", "UPLOADED", "PROCESSING") }
-    val pendingCount = jobs.count { it.status in listOf("PLANNED", "SCRIPTED", "LOCALIZED", "TTS_READY", "RENDERED", "QA_PASSED") }
-    val failedCount = jobs.count { it.status in listOf("QA_FAILED", "QUARANTINED") }
+    val producedCount = jobs.count { it.status in CloudJobStates.PRODUCED }
+    val uploadingCount = jobs.count { it.status in listOf("UPLOADING", "UPLOADED", "PROCESSING") && CloudJobStates.isRunning(it) }
+    val pendingCount = jobs.count { it.status !in CloudJobStates.TERMINAL && it.status !in listOf("UPLOADING", "UPLOADED", "PROCESSING") && CloudJobStates.isRunning(it) }
+    val failedCount = jobs.count { it.status in CloudJobStates.FAILED }
 
-    // Sadece gerçekten devam eden iş aktif iştir (tamamlanan veya karantinadakiler değil)
-    val activeJob = jobs.firstOrNull {
-        it.status !in listOf("PUBLISHED", "COMPLETED", "PROCESSED", "PROCESSED_PRIVATE", "QA_FAILED", "QUARANTINED")
-    }
+    // Sadece bulutta gerçekten devam eden (ve son 2 saatte güncellenmiş) iş aktif iştir
+    val activeJob = jobs.firstOrNull { CloudJobStates.isRunning(it) }
     val displayJob = activeJob ?: jobs.firstOrNull()
 
     LazyColumn(
@@ -466,7 +474,8 @@ fun ControlCenterScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "$dailyEpisodes master × ${activeLanguages.size} aktif dil",
+                            text = if (distributionMode == "SINGLE_CHANNEL_MULTI_AUDIO") "$dailyEpisodes master, ${activeLanguages.size} ses kanalı"
+                                   else "$dailyEpisodes master × ${activeLanguages.size} aktif dil",
                             style = MaterialTheme.typography.bodyMedium
                         )
                         Surface(
@@ -486,7 +495,7 @@ fun ControlCenterScreen(
             }
         }
 
-        // 6. LANGUAGE MATRIX SELECTION (EN, ES, DE, FR, PT)
+        // 6. LANGUAGE MATRIX (10 languages) + per-language cloud status
         item {
             Card(
                 modifier = Modifier
@@ -498,51 +507,98 @@ fun ControlCenterScreen(
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
                     Text(
-                        text = "AKTİF ÜRETİM DİLLERİ",
+                        text = "AKTİF ÜRETİM DİLLERİ (10)",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "Yalnızca ticari kullanım lisansı onaylanmış Piper modelleri üretimdedir.",
+                        text = "Tek master bölüm, dile özel el yapımı çeviri + Chatterbox seslendirme. Kanalı bağlı olmayan dil otomatik bekletilir, diğerleri durmaz.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.outline
                     )
-
                     Spacer(modifier = Modifier.height(12.dp))
-
-                    val productionLangs = listOf(
-                        "EN" to "English (US)",
-                        "ES" to "Spanish",
-                        "DE" to "German",
-                        "FR" to "French",
-                        "PT" to "Portuguese"
+                    LanguageChips(
+                        selected = activeLanguages.toSet(),
+                        onToggle = { onToggleLanguage(it) },
+                        statusOf = { code -> latestByLanguage[code]?.status }
                     )
+                }
+            }
+        }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        productionLangs.forEach { (code, name) ->
-                            val isSelected = activeLanguages.contains(code)
+        // 6b. DISTRIBUTION MODEL + NARRATOR + PARALLEL NARRATION
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .graphicsLayer { }
+                    .testTag("distribution_card"),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text("YAYIN MODELİ", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    listOf(
+                        Triple("MULTI_CHANNEL", "Her dil kendi kanalında", "Tam otomatik. Her dil için bir YouTube kanalı + YOUTUBE_REFRESH_TOKEN_<DİL> gerekir."),
+                        Triple("SINGLE_CHANNEL", "Tek kanal, her dil ayrı video", "Tam otomatik. Tüm diller ana (EN) kanala ayrı video olarak yüklenir."),
+                        Triple("SINGLE_CHANNEL_MULTI_AUDIO", "Tek kanal, tek video + dil ses kanalları", "Video ve 9 dil ses dosyası otomatik hazırlanır. YouTube API ses kanalı yükleyemediği için sesler Studio'dan elle eklenir.")
+                    ).forEach { (mode, title, desc) ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable(enabled = onSetDistributionMode != null) { onSetDistributionMode?.invoke(mode) }
+                                .padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            RadioButton(selected = distributionMode == mode, onClick = { onSetDistributionMode?.invoke(mode) })
+                            Column(modifier = Modifier.padding(top = 10.dp)) {
+                                Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                                Text(desc, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+                    Text("ANLATICI", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("alternate" to "Sırayla", "female" to "Kız (F2)", "male" to "Erkek (M1)").forEach { (m, label) ->
                             FilterChip(
-                                selected = isSelected,
-                                onClick = { onToggleLanguage(code) },
-                                label = { Text(code) },
-                                leadingIcon = if (isSelected) {
-                                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                                } else null,
-                                modifier = Modifier.testTag("chip_lang_$code")
+                                selected = narratorMode == m,
+                                onClick = { onSetNarratorMode?.invoke(m) },
+                                label = { Text(label) },
+                                modifier = Modifier.testTag("chip_narrator_$m")
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
-                    Text(
-                        text = "Pilot Değerlendirme (Kilitli): AR, HI, ZH, JA, TR",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outline
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("PARALEL SESLENDİRME", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            Text(
+                                "Dil başına $ttsShards sunucu aynı anda seslendirir (ücretsiz GitHub sunucuları).",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                        FilledTonalIconButton(onClick = { onSetShards?.invoke(ttsShards - 1) }, enabled = ttsShards > 1) {
+                            Icon(Icons.Default.Remove, contentDescription = "Azalt")
+                        }
+                        Text("$ttsShards", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
+                             modifier = Modifier.padding(horizontal = 8.dp))
+                        FilledTonalIconButton(onClick = { onSetShards?.invoke(ttsShards + 1) }, enabled = ttsShards < 20) {
+                            Icon(Icons.Default.Add, contentDescription = "Artır")
+                        }
+                    }
                 }
             }
         }
@@ -568,7 +624,8 @@ fun ControlCenterScreen(
 
                     InfraItem(title = "GitHub Actions Runner", value = "ubuntu-24.04-arm (aarch64)", ok = true)
                     InfraItem(title = "Supabase PostgreSQL", value = "PostgREST 16 Cloud DB", ok = true)
-                    InfraItem(title = "Piper Neural TTS", value = "LibriTTS-R (CC-BY 4.0)", ok = true)
+                    InfraItem(title = "Seslendirme", value = "Chatterbox (MIT) + ses kalite kalkanı", ok = true)
+                    InfraItem(title = "Paralel sunucu", value = "$ttsShards / dil", ok = true)
                     InfraItem(title = "FFmpeg Render", value = "1080p60 H.264 / AAC", ok = true)
                     InfraItem(title = "YouTube Data API v3", value = "Private Mode (Unverified Audit Safe)", ok = true)
                     InfraItem(title = "0 TL Maliyet Tavanı", value = "ALLOW_PAID_SERVICES = false", ok = true)
@@ -656,42 +713,57 @@ fun ControlCenterScreen(
         }
     }
 
-    // Quick Dispatch Dialog
+    // Test production dialog (manual run: episode + languages; same parallel pipeline as the factory)
     if (showQuickDispatchDialog) {
         AlertDialog(
             onDismissRequest = { showQuickDispatchDialog = false },
             icon = { Icon(Icons.Default.RocketLaunch, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-            title = { Text("Bulut Üretimini Tetikle") },
+            title = { Text("Test Üretimi Başlat") },
             text = {
                 Column {
-                    Text("Bölüm DNA: EP-COLORS-5-V1 (Renkleri Öğrenelim)", fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text("Hedef Dil Seçin:", fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        listOf("EN", "ES", "DE", "FR", "PT").forEach { lang ->
+                    Text("Bölüm:", fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("EP-COLORS-MEGA-V1" to "Renkler", "EP-ANIMALS-MEGA-V1" to "Hayvanlar").forEach { (id, label) ->
                             FilterChip(
-                                selected = selectedDispatchLang == lang,
-                                onClick = { selectedDispatchLang = lang },
-                                label = { Text(lang, fontSize = 12.sp) }
+                                selected = selectedDispatchEpisode == id,
+                                onClick = { selectedDispatchEpisode = id },
+                                label = { Text(label, fontSize = 12.sp) }
                             )
                         }
                     }
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Privacy: PRIVATE • Made For Kids: TRUE • 0 TL Maliyet", fontSize = 11.sp, color = EmeraldPass, fontWeight = FontWeight.Bold)
+                    Text("Diller:", fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
+                    LanguageChips(
+                        selected = selectedDispatchLangs,
+                        onToggle = { code ->
+                            selectedDispatchLangs = if (code in selectedDispatchLangs && selectedDispatchLangs.size > 1)
+                                selectedDispatchLangs - code else selectedDispatchLangs + code
+                        },
+                        statusOf = { null }
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = dispatchDryRun, onCheckedChange = { dispatchDryRun = it })
+                        Text("Sadece video üret (YouTube'a yükleme)", fontSize = 12.sp)
+                    }
+                    Text("Yayın: ${com.example.ui.viewmodel.distributionLabel(distributionMode)} • Anlatıcı: ${com.example.ui.viewmodel.narratorLabel(narratorMode)}",
+                        fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                    Text("Privacy: PRIVATE • Made For Kids: TRUE • 0 TL", fontSize = 11.sp, color = EmeraldPass, fontWeight = FontWeight.Bold)
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        onQuickDispatch?.invoke(selectedDispatchEpisode, selectedDispatchLang)
+                        val langs = com.example.data.repository.FACTORY_LANGUAGES.map { it.first }.filter { it in selectedDispatchLangs }
+                        if (onTestDispatch != null) {
+                            onTestDispatch(selectedDispatchEpisode, langs, distributionMode, narratorMode, dispatchDryRun)
+                        } else {
+                            onQuickDispatch?.invoke(selectedDispatchEpisode, langs.first())
+                        }
                         showQuickDispatchDialog = false
                     }
                 ) {
-                    Text("Üretimi Başlat")
+                    Text("Başlat")
                 }
             },
             dismissButton = {
@@ -701,6 +773,66 @@ fun ControlCenterScreen(
             }
         )
     }
+}
+
+/** 10 language chips in two rows; the small line under a chip is that language's latest cloud state. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun LanguageChips(
+    selected: Set<String>,
+    onToggle: (String) -> Unit,
+    statusOf: (String) -> String?
+) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        com.example.data.repository.FACTORY_LANGUAGES.forEach { (code, native) ->
+            val isSelected = code in selected
+            val status = statusOf(code)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { onToggle(code) },
+                    label = { Text(code, fontWeight = FontWeight.Bold) },
+                    leadingIcon = if (isSelected) {
+                        { Icon(Icons.Default.Check, contentDescription = native, modifier = Modifier.size(14.dp)) }
+                    } else null,
+                    modifier = Modifier.testTag("chip_lang_$code")
+                )
+                if (status != null) {
+                    Text(
+                        text = shortState(status),
+                        fontSize = 9.sp,
+                        color = when (status) {
+                            in CloudJobStates.PRODUCED -> EmeraldPass
+                            in CloudJobStates.FAILED -> CrimsonBlock
+                            else -> MaterialTheme.colorScheme.primary
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+fun shortState(state: String): String = when (state) {
+    "QUEUED" -> "sırada"
+    "VALIDATING" -> "kontrol"
+    "TTS_SYNTHESIS" -> "seslendirme"
+    "RENDERING" -> "render"
+    "QA_TECHNICAL", "QA_PEDAGOGICAL" -> "kalite"
+    "UPLOADING" -> "yükleniyor"
+    "PROCESSING" -> "YouTube işliyor"
+    "PROCESSED_PRIVATE" -> "yüklendi (özel)"
+    "COMPLETED" -> "yayında"
+    "DUB_READY_FOR_STUDIO" -> "ses hazır"
+    "FAILED_QA" -> "kalite reddi"
+    "FAILED_UPLOAD" -> "yükleme hatası"
+    "QUOTA_PAUSED" -> "kota bekliyor"
+    "QUARANTINED" -> "karantina"
+    else -> state.lowercase()
 }
 
 @Composable

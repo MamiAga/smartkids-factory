@@ -94,8 +94,8 @@ fun MasterSpecScreen(
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
                         text = "• Android Uygulaması = 'Kokpit': İnsan mimar yönetim paneli, yerel Room izleme önbelleği, boru hattı durum denetleyicisi, Bölüm DNA stüdyosu ve Baş Mimar yapay zeka konsolu.\n\n" +
-                                "• Oracle VPS = 'Uçak Motoru': 10 dilde çalışan otonom üretim fabrikası (Headless Docker konteynerleri: PostgreSQL 16, Redis 7, Python Celery orkestratörü, Piper TTS ONNX motorları, FFmpeg deterministik render motoru, YouTube OAuth parçalı yükleyicisi).\n\n" +
-                                "• Senkronizasyon Sınırı: Android kokpiti Oracle sunucusu ile güvenli REST / mTLS protokolleri üzerinden haberleşir; kuyruk derinliğini izler, logları görüntüler ve toplu işleri tetikler.",
+                                "• GitHub Actions (ubuntu-24.04-arm) = 'Motor': plan -> dil başına paralel Chatterbox seslendirme sunucuları -> render + SKQS-4 kalite kapısı -> YouTube. Oracle ve Redmi sunucu fikirleri terk edildi.\n\n" +
+                                "• Supabase = tek doğru kaynak: telefon yalnızca automation_control'ü değiştirir ve pipeline_jobs'u okur; START GitHub'ı tetikler, STOP çalışan bulut işlerini iptal eder.",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         lineHeight = 17.sp
@@ -119,14 +119,14 @@ fun MasterSpecScreen(
                     Spacer(modifier = Modifier.height(10.dp))
 
                     val masterRules = listOf(
-                        "ORACLE OCI ALWAYS FREE" to "2 OCPU + 12GB RAM + 200GB Blok Depolama. Görev başına iş parçacığı kesin olarak 1 ile sınırlı.",
+                        "GITHUB ACTIONS ARM64 (0 TL)" to "Public repo -> ücretsiz sunucular. Seslendirme dil başına 8 sunucuda paralel, render tek sunucuda.",
                         "0 TL ÇİFT KATMANLI KORUMA" to "Uygulama İçi CostGuard denetimi + Cloud compartman kota kilidi (0.00 TL tavanı).",
                         "GEMINI 0 TL STRATEJİSİ" to "gemini-3.5-flash (QA ve denetim kapısı) ve gemini-3.5-flash-lite (lokalizasyon/metadata). 3.1 Pro & Search kaldırıldı.",
                         "STATİK SES KÜTÜĞÜ" to "Lisans doğrulaması statik SHA-256 denetimine bağlandı; çalışma anı web araması kaldırıldı.",
-                        "TÜRKÇE (TR) ENGELİ" to "tr_TR-dfki-medium (CC-BY-NC 4.0 ticari olmayan) kilitli. Çözüm: CC0/MIT model (tr_TR-fahrettin) ile değişim.",
+                        "10 DİL" to "EN ES PT FR DE IT TR RU AR HI: tek master bölüm, el yapımı yerelleştirme (backend/engine/i18n), Chatterbox Multilingual (MIT).",
                         "YOUTUBE API 100/GÜN" to "videos.insert: 100 çağrı/gün (1 birim/çağrı). 10-20 video/gün tek API projesi kotasına tam uygun.",
-                        "YOUTUBE OAUTH (10 KANAL)" to "EN, ES, DE, FR, PT, AR, HI, ZH, JA, TR dilleri için bağımsız offline refresh_token.",
-                        "TTS KESİN KARAR" to "XTTS-v2 ticari olmayan CPML lisansı nedeniyle REDDEDİLDİ. Piper Engine (GPL-3.0) kabul edildi.",
+                        "YAYIN MODELİ (SEÇİLEBİLİR)" to "Her dil ayrı kanal / tek kanal ayrı videolar / tek video + dil ses kanalları. Uygulamadan değiştirilir.",
+                        "TTS KESİN KARAR" to "Chatterbox (MIT). Bir videoda tek ses: bozuk çekim başka motorla okunmaz, yeniden seslendirilir; yine bozuksa video yayınlanmaz.",
                         "DETERMİNİSTİK RENDER" to "seed = SHA256(episode_id + lang + version) -> Tekrarlarda %100 aynı video/ses çıktısı.",
                         "BÖLÜM DNA ŞEMASI" to "Enum format_type, sınırlandırılmış etkileşim duraklamaları, beyaz listedeki varlık kimlikleri.",
                         "TEKNİK & EĞİTSEL QA" to "FFprobe akış ve kodek denetimi + sesli söylenen sayı ile görsel sayı eşitlik doğrulaması.",
