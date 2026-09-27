@@ -131,11 +131,15 @@ class IdempotencyTests(unittest.TestCase):
     def test_unlocalized_language_is_isolated_not_crashing(self):
         from backend.engine.production_runner import LanguageNotReady
         with self.assertRaises(LanguageNotReady):
+            ProductionEngine(db=FakeDB()).run_production("EP-COLORS-MEGA-V1", "JA")  # no localisation
+
+    def test_localized_language_without_channel_pauses_before_rendering(self):
+        from backend.engine.production_runner import LanguageNotReady
+        for k in [k for k in os.environ if k.startswith("YOUTUBE_")]:
+            os.environ.pop(k)
+        with self.assertRaises(LanguageNotReady):
             ProductionEngine(db=FakeDB()).run_production("EP-COLORS-MEGA-V1", "ES")
 
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 class QualityStandardTests(unittest.TestCase):
@@ -145,7 +149,7 @@ class QualityStandardTests(unittest.TestCase):
             "black_segments": [], "max_luma_step": 6.0, "max_flashes_per_sec": 1}
     DESIGN = {"items": 8, "text_checks": [{"text": "RED", "px": 170, "contrast": 4.7}], "pictures": [True] * 5,
               "character_every_scene": True, "decorations": True, "music_bed": True, "countdowns": 24,
-              "wpm": 128, "voice": "af_heart", "interjection_ratio": 1.0, "tagged_ratio": 1.0,
+              "wpm": 128, "voice": "chatterbox_female_af_nicole_en", "interjection_ratio": 1.0, "tagged_ratio": 1.0,
               "whisper_lines": 20, "countdown_sfx": True}
 
     def meta(self):
@@ -164,7 +168,7 @@ class QualityStandardTests(unittest.TestCase):
                     {"true_peak_dbtp": 0.2}, {"duration": 300.0}, {"duration": 700.0}):
             with self.subTest(bad=bad):
                 self.assertFalse(evaluate(dict(self.GOOD, **bad), self.DESIGN, self.meta())["passed"])
-        for bad in ({"wpm": 175}, {"voice": "piper_robot"}, {"interjection_ratio": 0.3}, {"whisper_lines": 0},
+        for bad in ({"wpm": 175}, {"voice": "piper_robot"}, {"voice": "af_heart"}, {"voice_fallbacks": 1}, {"interjection_ratio": 0.3}, {"whisper_lines": 0},
                     {"countdown_sfx": False}, {"music_bed": False}, {"countdowns": 2},
                     {"text_checks": [{"text": "X", "px": 40, "contrast": 3.0}]}):
             with self.subTest(bad=bad):
@@ -172,3 +176,146 @@ class QualityStandardTests(unittest.TestCase):
         m = self.meta()
         m["made_for_kids"] = False
         self.assertFalse(evaluate(self.GOOD, self.DESIGN, m)["passed"])
+
+
+class TenLanguageTests(unittest.TestCase):
+    """One master episode -> 10 hand-localised languages."""
+    LANGS = ["EN", "ES", "PT", "FR", "DE", "IT", "TR", "RU", "AR", "HI"]
+
+    def test_all_ten_languages_are_localized(self):
+        from backend.engine.longform import available_languages
+        from backend.engine import languages
+        self.assertEqual(sorted(available_languages()), sorted(self.LANGS))
+        self.assertEqual(sorted(languages.ALL_CODES), sorted(self.LANGS))
+
+    def test_every_language_passes_script_gate_and_acting_rule(self):
+        from backend.engine.longform import localize, starts_with_interjection
+        for L in self.LANGS:
+            for ep in CATALOG:
+                with self.subTest(lang=L, ep=ep["episode_id"]):
+                    self.assertTrue(ProductionEngine.run_linguistic_and_pedagogical_qa(L, ep)["passed"])
+                    lp = localize(ep, L)
+                    lines = [s["text"] for s in build_timeline(ep, language=L) if s["text"] and s["kind"] != "chant"]
+                    ratio = sum(starts_with_interjection(t, lp["interjections"]) for t in lines) / len(lines)
+                    self.assertGreaterEqual(ratio, 0.8)
+                    m = lf_meta(ep, [{"t": 0, "title": "x"}], L)
+                    self.assertIn("Apache", m["description"])
+                    self.assertLessEqual(len(m["title"]), 100)
+
+    def test_same_structure_in_every_language(self):
+        # required for one video with several dubbed audio tracks
+        from backend.engine.production_runner import master_seed
+        for ep in CATALOG:
+            seed = master_seed(ep["episode_id"])
+            ref = [(s["kind"], s["visual"].get("item"), tuple(s["visual"].get("choices", []))) for s in build_timeline(ep, seed, "EN")]
+            for L in self.LANGS[1:]:
+                got = [(s["kind"], s["visual"].get("item"), tuple(s["visual"].get("choices", []))) for s in build_timeline(ep, seed, L)]
+                if L in ("TR", "AR"):  # culturally swapped pictures (no pig) -> compare kinds/items only
+                    got, ref2 = [g[:2] for g in got], [r[:2] for r in ref]
+                    self.assertEqual(got, ref2, L)
+                else:
+                    self.assertEqual(got, ref, L)
+
+    def test_no_pig_for_turkish_and_arabic(self):
+        from backend.engine.longform import localize
+        for L in ("TR", "AR"):
+            for ep in CATALOG:
+                emojis = {it["pic"] for it in localize(ep, L)["items"]} | {e["e"] for it in localize(ep, L)["items"] for e in it["examples"]}
+                self.assertNotIn("🐷", emojis, L)
+
+    def test_turkish_capitalisation(self):
+        from backend.engine.longform import cap
+        from backend.engine.visuals import upper
+        self.assertEqual(cap("inek", "TR"), "İnek")
+        self.assertEqual(upper("Renk Partisi", "TR"), "RENK PARTİSİ")
+
+
+class ParallelPlanTests(unittest.TestCase):
+    def setUp(self):
+        for k in [k for k in os.environ if k.startswith("YOUTUBE_")]:
+            os.environ.pop(k)
+
+    def test_shards_cover_every_line_exactly_once(self):
+        from backend.engine.factory_plan import shard_lines
+        from backend.engine.longform import all_narration
+        lines = all_narration(CATALOG[0], 123, "ES")
+        parts = shard_lines(lines, 8)
+        flat = [t for p in parts for t in p]
+        self.assertEqual(sorted(flat), sorted(lines))
+        self.assertEqual(len(flat), len(set(flat)))
+        loads = [sum(len(t.split()) for t in p) for p in parts]
+        self.assertLess(max(loads) - min(loads), max(loads) * 0.35)
+
+    def test_multi_channel_skips_languages_without_channel(self):
+        from backend.engine.factory_plan import build_plan
+        os.environ.update(YOUTUBE_CLIENT_ID="x", YOUTUBE_REFRESH_TOKEN_EN="t")
+        ctrl = dict(CTRL, active_languages=["EN", "TR"], distribution_mode="MULTI_CHANNEL")
+        p = build_plan(ctrl, [], {}, AFTER)
+        self.assertEqual([v["languages"] for v in p["videos"]], [["EN"]])
+        self.assertEqual(p["skipped"][0]["language"], "TR")
+        self.assertTrue(all(t["language"] == "EN" for t in p["tts_matrix"]))
+        self.assertEqual(len(p["tts_matrix"]), 8)
+
+    def test_single_channel_makes_one_video_per_language_on_main_channel(self):
+        from backend.engine.factory_plan import build_plan
+        os.environ.update(YOUTUBE_CLIENT_ID="x", YOUTUBE_REFRESH_TOKEN_EN="t")
+        ctrl = dict(CTRL, active_languages=["EN", "TR", "ES"], distribution_mode="SINGLE_CHANNEL", tts_shards=4)
+        p = build_plan(ctrl, [], {}, AFTER)
+        self.assertEqual(sorted(v["languages"][0] for v in p["videos"]), ["EN", "ES", "TR"])
+        self.assertEqual(len(p["tts_matrix"]), 12)
+
+    def test_multi_audio_is_one_video_with_all_languages(self):
+        from backend.engine.factory_plan import build_plan
+        os.environ.update(YOUTUBE_CLIENT_ID="x", YOUTUBE_REFRESH_TOKEN_EN="t")
+        ctrl = dict(CTRL, active_languages=["TR", "EN", "DE"], distribution_mode="SINGLE_CHANNEL_MULTI_AUDIO")
+        p = build_plan(ctrl, [], {}, AFTER)
+        self.assertEqual(len(p["produce_matrix"]), 1)
+        self.assertEqual(p["produce_matrix"][0]["languages"], "EN TR DE")
+
+    def test_narrator_alternates_and_can_be_forced(self):
+        from backend.engine.production_runner import narrator_for
+        self.assertEqual(narrator_for(CATALOG[0]["episode_id"]), "female")
+        self.assertEqual(narrator_for(CATALOG[1]["episode_id"]), "male")
+        self.assertEqual(narrator_for(CATALOG[1]["episode_id"], "female"), "female")
+
+    def test_disabled_factory_plans_nothing(self):
+        from backend.engine.factory_plan import build_plan
+        p = build_plan(dict(CTRL, enabled=False), [], {}, AFTER)
+        self.assertFalse(p["should_run"])
+
+
+class SharedTimelineTests(unittest.TestCase):
+    def test_multi_track_durations_fit_the_longest_language(self):
+        os.environ["SMARTKIDS_TEST_TTS"] = "1"
+        try:
+            from backend.engine import longform_engine as L
+            from backend.engine.production_runner import master_seed
+            ep = CATALOG[1]
+            seed = master_seed(ep["episode_id"])
+            tracks = {g: build_timeline(ep, seed, g) for g in ("EN", "DE")}
+            import tempfile
+            with tempfile.TemporaryDirectory() as d:
+                total = L.plan_tracks(ep, tracks, d, "T", seed)
+            self.assertTrue(L.MIN_TARGET - 60 <= total <= L.MAX_TARGET + 1)
+            for a, b in zip(tracks["EN"], tracks["DE"]):
+                self.assertEqual((a["t0"], a["dur"], a["kind"]), (b["t0"], b["dur"], b["kind"]))
+                for t in (a, b):
+                    if t.get("speech_sec"):
+                        self.assertGreaterEqual(t["dur"], t["speech_sec"])
+        finally:
+            os.environ.pop("SMARTKIDS_TEST_TTS")
+
+
+class VoiceGuardTextTests(unittest.TestCase):
+    def test_wer_and_cer(self):
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tools"))
+        import voice_guard as VG
+        self.assertEqual(VG.text_error("Wow! It's red!", "wow its red", "wer"), 0.0)
+        self.assertLess(VG.text_error("¡Guau! ¡Es rojo!", "Guau es rojo", "cer"), 0.05)
+        self.assertLess(VG.text_error("वाह! यह लाल है!", "वाह यह लाल है", "cer"), 0.05)
+        self.assertEqual(VG.text_error("Three!", "3", "wer", {"3": "three"}), 0.0)
+        self.assertGreater(VG.text_error("The cow says moo", "blah blah growl", "wer"), 0.5)
+
+
+if __name__ == "__main__":
+    unittest.main()
