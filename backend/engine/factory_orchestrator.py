@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""SmartKids Autonomous Cloud Factory — scheduler + dispatcher.
+"""SmartKids Autonomous Cloud Factory — scheduling rules (+ a single-runner fallback cycle).
 
-Runs from .github/workflows/smartkids_factory.yml (hourly cron + Android START dispatch).
+The GitHub pipeline (.github/workflows/smartkids_factory.yml) uses plan_cycle() through
+backend/engine/factory_plan.py and narrates in parallel. run_cycle() below is the sequential
+single-machine fallback (local tests / --dry-run).
 
 Decision rules (all state lives in Supabase automation_control / pipeline_jobs):
   1. enabled = false                         -> STANDBY (heartbeat only, nothing produced)
@@ -172,7 +174,9 @@ class AutonomousFactoryOrchestrator:
         control = self._control()
         engine = ProductionEngine(strict_supabase=self.strict_supabase, dry_run=self.dry_run, db=self.db,
                                   stop_check=lambda: not self._still_enabled(),
-                                  publish_mode=str(control.get("publish_mode") or "PRIVATE"))
+                                  publish_mode=str(control.get("publish_mode") or "PRIVATE"),
+                                  distribution_mode=str(control.get("distribution_mode") or "MULTI_CHANNEL"),
+                                  narrator_mode=str(control.get("narrator_mode") or "alternate"))
         self.db.event("FACTORY_CYCLE_START", plan["reason"], details={"plan": plan["per_language"]})
         quota_hit = False
 

@@ -1,6 +1,11 @@
-"""SmartKids Production Engine — one (episode, language) job end to end.
+"""SmartKids Production Engine — one master episode -> one language video (or one multi-audio video).
 
-GitHub Actions (ubuntu-24.04-arm) + Piper TTS + FFmpeg + YouTube Data API v3 + Supabase.
+GitHub Actions (ubuntu-24.04-arm) + Chatterbox TTS + FFmpeg + YouTube Data API v3 + Supabase.
+
+Distribution modes (automation_control.distribution_mode, see backend/engine/languages.py):
+  MULTI_CHANNEL              every language -> its own channel (YOUTUBE_REFRESH_TOKEN_<LANG>)
+  SINGLE_CHANNEL             every language -> its own localized video on the main channel
+  SINGLE_CHANNEL_MULTI_AUDIO one video on the main channel, dubbed audio tracks for the other languages
 
 What changed vs. v0.1 (see docs/FACTORY_AUDIT.md):
   * Episodes come from curriculum.py instead of a single hard-coded script.
@@ -27,10 +32,13 @@ import urllib.request
 from typing import Any, Callable, Dict, List, Optional
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from backend.engine.longform import PACKS_BY_ID, TEMPLATE_VERSION, build_timeline, episode_dna_row  # noqa: E402
+from backend.engine.longform import (PACKS, PACKS_BY_ID, TEMPLATE_VERSION, available_languages,  # noqa: E402
+                                     build_timeline, episode_dna_row, localize, plain,
+                                     starts_with_interjection)
 from backend.engine.longform import youtube_metadata as longform_metadata  # noqa: E402
+from backend.engine import languages as LANGS  # noqa: E402
 from backend.engine import longform_engine, tts  # noqa: E402
-from backend.engine.supabase_rest import SupabaseREST  # noqa: E402
+from backend.engine.supabase_rest import SupabaseREST, utc_now_iso  # noqa: E402
 from backend.engine import visuals  # noqa: E402
 from backend.engine.quality import QualityGateError, RULES, STANDARD_ID, evaluate, measure  # noqa: E402
 
@@ -43,17 +51,14 @@ SCRATCH_DIR = "/tmp/smartkids_scratch"
 OUTPUT_DIR = "/tmp/smartkids_output"
 PUBLISH_PRIVACY = {"AUTO": "public", "PUBLIC": "public", "UNLISTED": "unlisted", "PRIVATE": "private"}
 
-PRODUCTION_VOICES = {
-    "EN": {"voice_id": "en_US-libritts_r-medium", "onnx": "models/piper/en/en_US-libritts_r-medium.onnx", "license": "CC-BY-4.0"},
-    "ES": {"voice_id": "es_ES-sharvard-medium", "onnx": "models/piper/es/es_ES-sharvard-medium.onnx", "license": "VERIFY"},
-    "DE": {"voice_id": "de_DE-thorsten-medium", "onnx": "models/piper/de/de_DE-thorsten-medium.onnx", "license": "CC0-1.0"},
-    "FR": {"voice_id": "fr_FR-siwis-medium", "onnx": "models/piper/fr/fr_FR-siwis-medium.onnx", "license": "CC-BY-4.0"},
-    "PT": {"voice_id": "pt_BR-edresson-low", "onnx": "models/piper/pt/pt_BR-edresson-low.onnx", "license": "VERIFY"},
-}
-# Languages whose narration/QA is actually implemented. Others are LANGUAGE_PAUSED, not crashed.
-LOCALIZED_LANGUAGES = {"EN"}
+# Languages whose localisation file exists (backend/engine/i18n/<CODE>.json). Others are LANGUAGE_PAUSED.
+LOCALIZED_LANGUAGES = set(available_languages())
+MAIN_CHANNEL = os.getenv("SMARTKIDS_MAIN_CHANNEL", "EN")   # single-channel modes upload here
 
 # States that mean "a video exists on YouTube for this job" -> never upload again.
+STATE_PROGRESS = {"QUEUED": 2, "VALIDATING": 5, "TTS_SYNTHESIS": 10, "RENDERING": 55, "QA_TECHNICAL": 80,
+                  "QA_PEDAGOGICAL": 84, "UPLOADING": 88, "PROCESSING": 94, "PROCESSED_PRIVATE": 100, "COMPLETED": 100,
+                  "DUB_READY_FOR_STUDIO": 100}
 UPLOADED_STATES = {"UPLOADED_PRIVATE", "PROCESSING", "PROCESSED_PRIVATE", "COMPLETED"}
 FINAL_SUCCESS_STATES = {"PROCESSED_PRIVATE", "COMPLETED"}
 
@@ -75,6 +80,21 @@ def make_job_id(episode_id: str, language: str) -> (str, str):
     return f"JOB-{language}-{seed[:8]}", seed
 
 
+def master_seed(episode_id: str) -> int:
+    """Timeline seed shared by all languages of an episode (same quiz order / choices in every language,
+    required for one video with several dubbed audio tracks)."""
+    return int(hashlib.sha256(f"{episode_id}:{TEMPLATE_VERSION}:master".encode()).hexdigest()[:6], 16)
+
+
+def narrator_for(episode_id: str, mode: str = "alternate") -> str:
+    """Girl / boy narrator alternates per episode unless the control row forces one."""
+    mode = (mode or "alternate").lower()
+    if mode in tts.NARRATORS:
+        return mode
+    order = [p["episode_id"] for p in PACKS].index(episode_id)
+    return "female" if order % 2 == 0 else "male"
+
+
 def _run(cmd: List[str], **kw) -> subprocess.CompletedProcess:
     p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kw)
     if p.returncode != 0:
@@ -91,9 +111,14 @@ def probe_duration(path: str) -> float:
 class ProductionEngine:
     def __init__(self, strict_supabase: bool = False, dry_run: bool = False,
                  db: Optional[SupabaseREST] = None, stop_check: Optional[Callable[[], bool]] = None,
-                 publish_mode: str = "PRIVATE"):
+                 publish_mode: str = "PRIVATE", distribution_mode: str = LANGS.DEFAULT_DISTRIBUTION_MODE,
+                 narrator_mode: str = "alternate"):
         self.dry_run = dry_run
         self.publish_privacy = PUBLISH_PRIVACY.get((publish_mode or "PRIVATE").upper(), "private")
+        self.distribution_mode = (distribution_mode or LANGS.DEFAULT_DISTRIBUTION_MODE).upper()
+        if self.distribution_mode not in LANGS.DISTRIBUTION_MODES:
+            raise ValueError(f"distribution_mode must be one of {LANGS.DISTRIBUTION_MODES}")
+        self.narrator_mode = narrator_mode or "alternate"
         self.strict_supabase = strict_supabase and not dry_run
         self.db = db or SupabaseREST(dry_run=dry_run)
         self.stop_check = stop_check
@@ -106,33 +131,46 @@ class ProductionEngine:
         os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     # ------------------------------------------------------------ bookkeeping
-    def _stage(self, job: Dict[str, Any], state: str, **extra) -> None:
+    def _stage(self, job: Dict[str, Any], state: str, strict: Optional[bool] = None, **extra) -> None:
         job["state"] = state
         job.update(extra)
+        if state in STATE_PROGRESS:
+            job["progress_pct"] = STATE_PROGRESS[state]
         logger.info("[Job %s] state -> %s", job["job_id"], state)
         if self.db.connected:
-            self.db.upsert_job(job, strict=self.strict_supabase)
+            self.db.upsert_job(job, strict=self.strict_supabase if strict is None else strict)
             self.db.heartbeat(current_job_id=job["job_id"])
+
+    def _stage_all(self, jobs: List[Dict[str, Any]], state: str, **extra) -> None:
+        for j in jobs:
+            self._stage(j, state, **extra)
 
     # --------------------------------------------------------------------- QA
     @staticmethod
     def run_linguistic_and_pedagogical_qa(language: str, pack: Dict[str, Any]) -> Dict[str, Any]:
-        """Content gate on the script before any compute is spent."""
-        items = pack["items"]
+        """Content gate on the localized script before any compute is spent."""
+        lp = localize(pack, language)
+        items = lp["items"]
         if len(items) < 6:
             raise QualityGateError(f"PEDAGOGICAL FAULT: only {len(items)} items (need >= 6)")
-        segs = build_timeline(pack)
-        text = " ".join(x["text"] for x in segs if x["text"])
+        segs = build_timeline(pack, language=language)
+        texts = [x["text"] for x in segs if x["text"]]
         if language == "EN":
-            if re.search(r"[çğıöşüİÇĞÖŞÜ]", text):
+            joined = " ".join(texts)
+            if re.search(r"[çğıöşüİÇĞÖŞÜ]", joined):
                 raise QualityGateError("LINGUISTIC FAULT: Turkish characters in EN narration")
-            if re.search(r"[^\x20-\x7E]", text):
+            if re.search(r"[^\x20-\x7E]", joined):
                 raise QualityGateError("LINGUISTIC FAULT: non-ASCII characters in EN narration")
+        for t in texts:
+            if "{" in t or "}" in t:
+                raise QualityGateError(f"LINGUISTIC FAULT: unfilled placeholder in {t[:60]!r}")
+            if not t.lstrip().startswith("["):
+                raise QualityGateError(f"ACTING FAULT: line without emotion tag: {t[:60]!r}")
         for it in items:
             if len(it["examples"]) < 3:
                 raise QualityGateError(f"PEDAGOGICAL FAULT: item {it['key']} has < 3 examples")
         for x in segs:
-            if x["text"] and len(x["text"].split()) > 45:
+            if x["text"] and sum(1 for w in plain(x["text"]).split() if any(c.isalnum() for c in w)) > 45:
                 raise QualityGateError(f"PEDAGOGICAL FAULT: one narration line has > 45 words: {x['text'][:60]}")
         n_countdown = sum(1 for x in segs if x["kind"] == "countdown")
         if n_countdown < len(items):
@@ -141,112 +179,11 @@ class ProductionEngine:
                     language, len(items), len(segs), n_countdown)
         return {"passed": True}
 
-    # -------------------------------------------------------------------- TTS
-    def _tts_scene(self, language: str, text: str, wav_path: str) -> None:
-        if self.test_tts:  # dry-run only: approximate speech length with a quiet tone
-            seconds = max(2.0, len(text.split()) / 2.8)
-            _run(["ffmpeg", "-y", "-f", "lavfi", "-i", f"sine=f=220:d={seconds:.2f}",
-                  "-af", "volume=0.2", "-ar", "22050", wav_path])
-            return
-        onnx = os.path.join(BASE_DIR, PRODUCTION_VOICES[language]["onnx"])
-        if not os.path.exists(onnx):
-            raise LanguageNotReady(f"Piper model missing: {onnx}")
-        _run(["piper", "-m", onnx, "-f", wav_path, "--sentence_silence", "0.4"], input=text.encode("utf-8"))
-
-    def synthesize_audio(self, language: str, episode: Dict[str, Any], job_id: str) -> Dict[str, Any]:
-        """Per scene: soft chime (0.6 s) + narration + interaction pause. 48 kHz stereo, 2-pass EBU R128."""
-        scenes = episode["scenes"]
-        chime = os.path.join(SCRATCH_DIR, f"{job_id}_chime.wav")
-        _run(["ffmpeg", "-y", "-f", "lavfi", "-i", "sine=f=880:d=0.6", "-f", "lavfi", "-i", "sine=f=1318.5:d=0.6",
-              "-filter_complex", "[0][1]amix=inputs=2,volume=0.35,afade=t=in:d=0.01,afade=t=out:st=0.05:d=0.55,"
-              "aresample=48000,aformat=channel_layouts=stereo", chime])
-        speech, durs = [], []
-        for sc in scenes:
-            wav = os.path.join(SCRATCH_DIR, f"{job_id}_scene{sc['scene_id']}.wav")
-            self._tts_scene(language, sc["speech"], wav)
-            d = probe_duration(wav)
-            if len(sc["speech"].split()) > RULES["max_words_per_scene"]:
-                raise QualityGateError(f"scene {sc['scene_id']} longer than {RULES['max_words_per_scene']} words")
-            logger.info("  scene %d (%s): %.2fs speech", sc["scene_id"], sc["key"], d)
-            speech.append(wav)
-            durs.append(d)
-
-        chime_len = 0.6
-        target = episode["min_duration_sec"] + 2.0
-        pause = round(max(RULES["min_pause_sec"],
-                          min(RULES["max_pause_sec"], (target - sum(durs) - chime_len * len(scenes)) / len(scenes))), 3)
-        scene_durs = [chime_len + d + pause for d in durs]
-        logger.info("[Audio] speech=%.2fs pause=%.2fs/scene total=%.2fs", sum(durs), pause, sum(scene_durs))
-
-        inputs, filt = [], ""
-        for i, w in enumerate(speech):
-            inputs += ["-i", chime, "-i", w]
-            filt += (f"[{2 * i + 1}:a]aresample=48000,aformat=channel_layouts=stereo,apad=pad_dur={pause:.3f}[s{i}];"
-                     f"[{2 * i}:a][s{i}]concat=n=2:v=0:a=1[c{i}];")
-        filt += "".join(f"[c{i}]" for i in range(len(speech))) + f"concat=n={len(speech)}:v=0:a=1[out]"
-        raw = os.path.join(SCRATCH_DIR, f"{job_id}_master_raw.wav")
-        _run(["ffmpeg", "-y"] + inputs + ["-filter_complex", filt, "-map", "[out]", raw])
-
-        # two-pass loudnorm -> accurate -16 LUFS / -1.5 dBTP
-        p1 = subprocess.run(["ffmpeg", "-hide_banner", "-i", raw, "-af",
-                             "loudnorm=I=-16:TP=-1.5:LRA=11:print_format=json", "-f", "null", "-"],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE).stderr.decode()
-        st = json.loads(p1[p1.rfind("{"):p1.rfind("}") + 1])
-        master = os.path.join(OUTPUT_DIR, f"{job_id}_master.wav")
-        _run(["ffmpeg", "-y", "-i", raw, "-af",
-              "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true:"
-              f"measured_I={st['input_i']}:measured_TP={st['input_tp']}:measured_LRA={st['input_lra']}:"
-              f"measured_thresh={st['input_thresh']}:offset={st['target_offset']},aresample=48000",
-              "-c:a", "pcm_s16le", "-ar", "48000", "-ac", "2", master])
-        return {"path": master, "scene_durations": scene_durs, "pause": pause}
-
-    # ----------------------------------------------------------------- render
-    def render_video(self, episode: Dict[str, Any], audio: Dict[str, Any], job_id: str) -> Dict[str, Any]:
-        """Pillow cards + animated picture + Lumi, H.264 High 1080p60 CRF 18, BT.709."""
-        n = len(episode["scenes"])
-        lumi = visuals.render_lumi(SCRATCH_DIR, job_id)
-        clips, text_checks, pictures = [], [], []
-        for i, sc in enumerate(episode["scenes"]):
-            assets = visuals.render_scene_assets(sc, i, n, SCRATCH_DIR, job_id)
-            text_checks += assets["text_checks"]
-            pictures.append(bool(assets["picture"]))
-            d = audio["scene_durations"][i]
-            fade_out = max(0.0, d - 0.5)
-            filt = (
-                "[1:v]format=rgba[p];[2:v]format=rgba[l];"
-                "[0:v][p]overlay=x=(W-w)/2:y=375-h/2+12*sin(2*PI*t/1.8):eval=frame[a];"
-                "[a][l]overlay=x=40:y=H-h-10+6*sin(2*PI*t/1.3+1):eval=frame,"
-                f"fade=t=in:st=0:d=0.5,fade=t=out:st={fade_out:.3f}:d=0.5,format=yuv420p[v]"
-            )
-            clip = os.path.join(SCRATCH_DIR, f"{job_id}_clip{i + 1}.mp4")
-            _run(["ffmpeg", "-y",
-                  "-loop", "1", "-framerate", "60", "-i", assets["bg"],
-                  "-loop", "1", "-framerate", "60", "-i", assets["picture"],
-                  "-loop", "1", "-framerate", "60", "-i", lumi,
-                  "-filter_complex", filt, "-map", "[v]", "-t", f"{d:.3f}", "-r", "60",
-                  "-c:v", "libx264", "-profile:v", "high", "-preset", "medium", "-crf", "18", "-g", "120",
-                  "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", clip])
-            clips.append(clip)
-
-        concat = os.path.join(SCRATCH_DIR, f"{job_id}_concat.txt")
-        with open(concat, "w") as fh:
-            fh.writelines(f"file '{c}'\n" for c in clips)
-        out = os.path.join(OUTPUT_DIR, f"{job_id}_{episode['episode_id'].lower()}.mp4")
-        _run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat, "-i", audio["path"],
-              "-map", "0:v", "-map", "1:a", "-c:v", "copy",
-              "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2",
-              "-shortest", "-movflags", "+faststart", out])
-        thumb = visuals.render_thumbnail(episode, os.path.join(OUTPUT_DIR, f"{job_id}_thumbnail.jpg"))
-        logger.info("[Render] %s (%d bytes), thumbnail %s", out, os.path.getsize(out), thumb)
-        design = {"scenes": n, "text_checks": text_checks, "pictures": pictures,
-                  "character_every_scene": True, "pause_sec": audio["pause"]}
-        return {"mp4": out, "thumbnail": thumb, "design": design}
-
     @staticmethod
     def run_quality_gate(render: Dict[str, Any], meta: Dict[str, Any], job_id: str) -> Dict[str, Any]:
         report = evaluate(measure(render["mp4"]), render["design"], meta)
         with open(os.path.join(OUTPUT_DIR, f"{job_id}_quality_report.json"), "w") as fh:
-            json.dump(report, fh, indent=2)
+            json.dump(report, fh, indent=2, ensure_ascii=False)
         m = report["measurements"]
         logger.info("[QA %s] %s | %.2fs %sx%s@%sfps | %.1f LUFS / %.1f dBTP | luma step %.1f | min contrast %s",
                     STANDARD_ID, "PASS" if report["passed"] else "FAIL", m["duration"], m["width"], m["height"],
@@ -257,14 +194,18 @@ class ProductionEngine:
         return report
 
     # ---------------------------------------------------------------- YouTube
-    @staticmethod
-    def _yt_credentials(language: str) -> Dict[str, str]:
+    def channel_for(self, language: str) -> str:
+        """Which channel's refresh token uploads this language."""
+        return language if self.distribution_mode == "MULTI_CHANNEL" else MAIN_CHANNEL
+
+    def _yt_credentials(self, language: str) -> Dict[str, str]:
+        ch = self.channel_for(language)
         cid = os.getenv("YOUTUBE_CLIENT_ID")
         csec = os.getenv("YOUTUBE_CLIENT_SECRET")
-        rtok = os.getenv(f"YOUTUBE_REFRESH_TOKEN_{language}")
+        rtok = os.getenv(f"YOUTUBE_REFRESH_TOKEN_{ch}")
         if not (cid and csec and rtok):
-            raise LanguageNotReady(f"YouTube OAuth secrets missing for {language} "
-                                   f"(need YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET, YOUTUBE_REFRESH_TOKEN_{language})")
+            raise LanguageNotReady(f"YouTube channel for {language} not connected "
+                                   f"(need YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET, YOUTUBE_REFRESH_TOKEN_{ch})")
         return {"client_id": cid, "client_secret": csec, "refresh_token": rtok}
 
     @staticmethod
@@ -285,16 +226,21 @@ class ProductionEngine:
     def upload_to_youtube(self, mp4: str, meta: Dict[str, Any], language: str) -> str:
         token = self._access_token(self._yt_credentials(language))
         size = os.path.getsize(mp4)
+        yt_lang = LANGS.get(language)["yt"]
         body = {
             "snippet": {"title": meta["title"], "description": meta["description"], "tags": meta["tags"],
-                        "categoryId": "27", "defaultLanguage": language.lower(), "defaultAudioLanguage": language.lower()},
+                        "categoryId": "27", "defaultLanguage": yt_lang, "defaultAudioLanguage": yt_lang},
             "status": {"privacyStatus": "private", "selfDeclaredMadeForKids": True, "embeddable": True},
         }
+        parts = "snippet,status"
+        if meta.get("localizations"):  # titles/descriptions shown to viewers of the other languages
+            body["localizations"] = meta["localizations"]
+            parts += ",localizations"
         last_err: Optional[Exception] = None
         for attempt in range(1, 4):
             try:
                 init = urllib.request.Request(
-                    "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status",
+                    f"https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part={parts}",
                     data=json.dumps(body).encode(), method="POST",
                     headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json; charset=UTF-8",
                              "X-Upload-Content-Length": str(size), "X-Upload-Content-Type": "video/mp4"})
@@ -304,11 +250,11 @@ class ProductionEngine:
                     put = urllib.request.Request(upload_url, data=fh.read(), method="PUT",
                                                  headers={"Authorization": f"Bearer {token}", "Content-Type": "video/mp4",
                                                           "Content-Length": str(size)})
-                with urllib.request.urlopen(put, timeout=600) as r:
+                with urllib.request.urlopen(put, timeout=900) as r:
                     video_id = json.loads(r.read().decode()).get("id")
                 if not video_id:
                     raise UploadError("YouTube returned no video id")
-                logger.info("[YouTube] uploaded, video id %s", video_id)
+                logger.info("[YouTube] uploaded (%s channel), video id %s", self.channel_for(language), video_id)
                 return video_id
             except urllib.error.HTTPError as e:
                 if e.code >= 500:
@@ -345,7 +291,7 @@ class ProductionEngine:
         return {"processing_status": status, "privacy_status": privacy}
 
     def set_thumbnail(self, video_id: str, jpg: str, language: str) -> bool:
-        """Custom thumbnails need a verified channel; failure is a warning, never a blocker."""
+        """Custom thumbnails need a phone-verified channel; failure is a warning, never a blocker."""
         token = self._access_token(self._yt_credentials(language))
         with open(jpg, "rb") as fh:
             req = urllib.request.Request(
@@ -357,7 +303,11 @@ class ProductionEngine:
                 logger.info("[YouTube] custom thumbnail set")
                 return True
         except urllib.error.HTTPError as e:
-            logger.warning("[YouTube] thumbnail not set (HTTP %s): %s", e.code, e.read().decode("utf-8", "replace")[:200])
+            txt = e.read().decode("utf-8", "replace")[:200]
+            logger.warning("[YouTube] thumbnail not set (HTTP %s): %s", e.code, txt)
+            if self.db.connected and e.code == 403:
+                self.db.event("THUMBNAIL_BLOCKED", "Custom thumbnail refused (HTTP 403). Verify the channel once at "
+                              "youtube.com/verify so thumbnails upload automatically.", "WARNING")
             return False
 
     def publish(self, video_id: str, language: str, privacy: str) -> str:
@@ -387,41 +337,66 @@ class ProductionEngine:
         logger.info("[YouTube] requested %s -> YouTube reports %s", privacy, final)
         return final
 
-    def produce_longform(self, pack: Dict[str, Any], language: str, job_id: str, seed_int: int) -> Dict[str, Any]:
-        # narrator alternates per episode (female / male) unless SMARTKIDS_NARRATOR forces one
-        forced = os.getenv("SMARTKIDS_NARRATOR_MODE", "alternate")
-        order = [p["episode_id"] for p in PACKS_BY_ID.values()].index(pack["episode_id"])
-        tts.set_narrator(forced if forced in tts.NARRATORS else ("female" if order % 2 == 0 else "male"))
-        segs = build_timeline(pack, seed=seed_int)
-        total = longform_engine.plan_audio(pack, segs, language, SCRATCH_DIR, job_id, seed_int)
-        audio = longform_engine.mix_audio(segs, total, SCRATCH_DIR, os.path.join(OUTPUT_DIR, f"{job_id}_master.wav"),
-                                          seed_int)
-        self._stage(self._job, "RENDERING")
-        rv = longform_engine.render(pack, segs, SCRATCH_DIR, None, job_id)
-        mp4 = os.path.join(OUTPUT_DIR, f"{job_id}_{pack['episode_id'].lower()}.mp4")
-        longform_engine.mux(rv["video_only"], audio["path"], mp4)
-        thumb = visuals.render_longform_thumbnail(pack, os.path.join(OUTPUT_DIR, f"{job_id}_thumbnail.jpg"))
-        meta = longform_metadata(pack, longform_engine.chapters(segs))
+    # ----------------------------------------------------------------- produce
+    def produce_longform(self, pack: Dict[str, Any], langs: List[str], job_key: str, narrator: str) -> Dict[str, Any]:
+        """Narrate every language track on one shared timeline, render the video once (on-screen text in the
+        first language), mix one audio master per language. len(langs) == 1 for the per-language modes."""
+        tts.set_narrator(narrator)
+        seed = master_seed(pack["episode_id"])
+        primary = langs[0]
+        tracks = {L: build_timeline(pack, seed=seed, language=L) for L in langs}
+        total = longform_engine.plan_tracks(pack, tracks, SCRATCH_DIR, job_key, seed)
+        audios = {}
+        for L in langs:
+            audios[L] = longform_engine.mix_audio(tracks[L], total, SCRATCH_DIR,
+                                                  os.path.join(OUTPUT_DIR, f"{job_key}_{L}_master.wav"), seed, L)
+        self._stage_all(self._jobs, "RENDERING")
+        lp = localize(pack, primary)
+        segs = tracks[primary]
+        rv = longform_engine.render(lp, segs, SCRATCH_DIR, None, job_key)
+        mp4 = os.path.join(OUTPUT_DIR, f"{job_key}_{pack['episode_id'].lower()}.mp4")
+        longform_engine.mux(rv["video_only"], audios[primary]["path"], mp4)
+        dubs = {}
+        for L in langs[1:]:  # dubbed tracks: same timeline, AAC files ready for YouTube Studio "Add language"
+            out = os.path.join(OUTPUT_DIR, f"{job_key}_{pack['episode_id'].lower()}_audio_{L}.m4a")
+            _run(["ffmpeg", "-y", "-loglevel", "error", "-i", audios[L]["path"], "-af",
+                  "aresample=192000,alimiter=limit=0.708:attack=1:release=50:level=false,aresample=48000",
+                  "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", out])
+            dubs[L] = out
+        thumb = visuals.render_longform_thumbnail(lp, os.path.join(OUTPUT_DIR, f"{job_key}_thumbnail.jpg"))
+        chapters = longform_engine.chapters(segs)
+        meta = longform_metadata(pack, chapters, primary)
         meta["made_for_kids"] = True
-        lines = [x["text"] for x in segs if x["text"] and x["kind"] != "chant"]  # chant = single sung words
-        from backend.engine.longform import INTERJECTIONS, COUNT_SFX
-        plain = [re.sub(r"\[[a-z]+\]\s*", "", t) for t in lines]
+        if len(langs) > 1:
+            meta["localizations"] = {}
+            for L in langs[1:]:
+                m = longform_metadata(pack, longform_engine.chapters(tracks[L]), L)
+                meta["localizations"][LANGS.get(L)["yt"]] = {"title": m["title"], "description": m["description"]}
+        lines = [x["text"] for x in segs if x["text"] and x["kind"] != "chant"]
+        from backend.engine.longform import COUNT_SFX
         acting = {
-            "interjection_ratio": round(sum(1 for t in plain if t.startswith(INTERJECTIONS)) / max(1, len(plain)), 2),
+            "interjection_ratio": round(sum(1 for t in lines if starts_with_interjection(t, lp["interjections"]))
+                                        / max(1, len(lines)), 2),
             "tagged_ratio": round(sum(1 for t in lines if t.lstrip().startswith("[")) / max(1, len(lines)), 2),
             "whisper_lines": sum(1 for t in lines if "[whisper]" in t),
             "countdown_sfx": all(x["sfx"] == COUNT_SFX and x.get("voice_parts") for x in segs if x["kind"] == "countdown"),
         }
-        self._write_scene_json(segs, job_id)
+        self._write_scene_json(segs, job_key)
+        guard = [a for x in tts.CB_LOG for a in x["attempts"]]
+        sims = [a["sim_min"] for a in guard if a.get("ok") and "sim_min" in a]
         design = {**acting, "items": len(pack["items"]), "text_checks": rv["text_checks"], "pictures": rv["pictures"],
-                  "character_every_scene": True, "decorations": rv["decorations"], "music_bed": audio["music_bed"],
-                  "countdowns": rv["countdowns"], "wpm": audio["wpm"], "words": audio["words"],
-                  "voice": tts.voice_id(), "segments": len(segs),
-                  "narrator": tts.NARRATOR if tts.ENGINE == "chatterbox" else "female",
-                  "retakes": sum(max(0, len(x["attempts"]) - 1) for x in tts.CB_LOG),
+                  "character_every_scene": True, "decorations": rv["decorations"], "music_bed": audios[primary]["music_bed"],
+                  "countdowns": rv["countdowns"], "wpm": audios[primary]["wpm"], "words": audios[primary]["words"],
+                  "voice": tts.voice_id(primary), "segments": len(segs), "narrator": narrator,
+                  "language": primary, "dub_languages": langs[1:],
+                  "dub_wpm": {L: audios[L]["wpm"] for L in langs[1:]},
+                  "retakes": sum(1 for a in guard if not a.get("ok")),
+                  "voice_guard": {"takes": len(guard), "rejected": sum(1 for a in guard if not a.get("ok")),
+                                  "worst_accepted_similarity": min(sims) if sims else None},
                   "voice_fallbacks": len(tts.FALLBACKS)}
-        logger.info("[Long-form] %s: %.1fs, %d words @ %.0f wpm", mp4, total, audio["words"], audio["wpm"])
-        return {"mp4": mp4, "thumbnail": thumb, "design": design, "meta": meta}
+        logger.info("[Long-form] %s: %.1fs, %d words @ %.0f wpm, narrator %s, guard %s", mp4, total,
+                    audios[primary]["words"], audios[primary]["wpm"], narrator, design["voice_guard"])
+        return {"mp4": mp4, "thumbnail": thumb, "design": design, "meta": meta, "dubs": dubs}
 
     @staticmethod
     def _write_scene_json(segs, job_id):
@@ -440,133 +415,200 @@ class ProductionEngine:
             json.dump(out, fh, indent=1, ensure_ascii=False)
 
     # -------------------------------------------------------------- main flow
-    def run_production(self, episode_id: str, language: str = "EN") -> Dict[str, Any]:
-        language = language.upper()
+    def _check_language(self, language: str) -> None:
+        if language not in LOCALIZED_LANGUAGES:
+            raise LanguageNotReady(f"{language}: no localisation file backend/engine/i18n/{language}.json")
+        LANGS.get(language)
+
+    def _existing_upload(self, job_id: str) -> Optional[Dict[str, Any]]:
+        existing = self.db.get_job(job_id) if self.db.connected else None
+        if existing and existing.get("youtube_video_id") and existing.get("state") in UPLOADED_STATES:
+            return existing
+        return None
+
+    def run_production(self, episode_id: str, language: str = "EN", narrator: Optional[str] = None) -> Dict[str, Any]:
+        """One language -> one video (MULTI_CHANNEL / SINGLE_CHANNEL)."""
+        return self._run(episode_id, [language.upper()], narrator)
+
+    def run_multi_audio(self, episode_id: str, langs: List[str], narrator: Optional[str] = None) -> Dict[str, Any]:
+        """One video on the main channel + dubbed audio tracks for the other languages."""
+        return self._run(episode_id, [l.upper() for l in langs], narrator)
+
+    def _run(self, episode_id: str, langs: List[str], narrator: Optional[str]) -> Dict[str, Any]:
         if episode_id not in PACKS_BY_ID:
             raise KeyError(f"Unknown episode {episode_id}. Known: {list(PACKS_BY_ID)}")
         episode = PACKS_BY_ID[episode_id]
-        job_id, seed = make_job_id(episode_id, language)
+        narrator = narrator or narrator_for(episode_id, self.narrator_mode)
+        primary = langs[0]
+        for L in langs:
+            self._check_language(L)
+        jobs = []
+        for L in langs:
+            job_id, seed = make_job_id(episode_id, L)
+            jobs.append({"job_id": job_id, "episode_id": episode_id, "language": L, "deterministic_seed": seed,
+                         "cost_usd": 0.0, "error_message": None, "technical_qa_passed": False,
+                         "educational_qa_passed": False, "narrator": narrator,
+                         "distribution_mode": self.distribution_mode})
+        main = jobs[0]
+        job_key = main["job_id"] if len(langs) == 1 else f"{main['job_id']}-MA"
         logger.info("=" * 64)
-        logger.info("PRODUCTION %s  %s [%s]", job_id, episode_id, language)
+        logger.info("PRODUCTION %s  %s [%s] narrator=%s mode=%s", job_key, episode_id, "+".join(langs), narrator,
+                    self.distribution_mode)
         logger.info("=" * 64)
-
-        if language not in LOCALIZED_LANGUAGES:
-            raise LanguageNotReady(f"{language}: localized narration + language QA not implemented yet")
-        if language not in tts.VOICES:
-            raise LanguageNotReady(f"{language}: no approved narrator voice")
 
         # ---- idempotency guard (episode + language + template_version) ----
-        existing = self.db.get_job(job_id) if self.db.connected else None
-        if existing and existing.get("youtube_video_id") and existing.get("state") in UPLOADED_STATES:
+        existing = self._existing_upload(main["job_id"])
+        if existing:
             logger.info("[Idempotency] %s already on YouTube (%s, state=%s) — no re-upload.",
-                        job_id, existing["youtube_video_id"], existing["state"])
+                        main["job_id"], existing["youtube_video_id"], existing["state"])
             if existing.get("state") == "PROCESSING" and not self.dry_run:
-                res = self.poll_processing(existing["youtube_video_id"], language, max_wait_sec=60)
+                res = self.poll_processing(existing["youtube_video_id"], primary, max_wait_sec=60)
                 if res["processing_status"] == "succeeded":
                     rec = dict(existing)
                     self._stage(rec, "PROCESSED_PRIVATE", processing_status="succeeded",
                                 youtube_privacy_status=res["privacy_status"])
-                    # quality gate already passed before this video was uploaded -> publish now
-                    privacy = self.publish(existing["youtube_video_id"], language, self.publish_privacy)
+                    privacy = self.publish(existing["youtube_video_id"], primary, self.publish_privacy)
                     if privacy in ("public", "unlisted"):
                         self._stage(rec, "COMPLETED", youtube_privacy_status=privacy)
-            return {"status": "SKIPPED_DUPLICATE", "job_id": job_id, "episode_id": episode_id,
-                    "language": language, "youtube_video_id": existing["youtube_video_id"]}
+            return {"status": "SKIPPED_DUPLICATE", "job_id": main["job_id"], "episode_id": episode_id,
+                    "language": primary, "youtube_video_id": existing["youtube_video_id"]}
+        if not self.dry_run:
+            self._yt_credentials(primary)  # no channel -> LANGUAGE_PAUSED before hours of rendering
 
         if self.db.connected:
             self.db.upsert_episode(episode_dna_row(episode))  # pipeline_jobs.episode_id is a FK
-        job: Dict[str, Any] = {"job_id": job_id, "episode_id": episode_id, "language": language,
-                               "deterministic_seed": seed, "cost_usd": 0.0, "error_message": None,
-                               "technical_qa_passed": False, "educational_qa_passed": False}
+        self._jobs = jobs
         started = time.time()
         try:
-            self._stage(job, "VALIDATING")
-            self.run_linguistic_and_pedagogical_qa(language, episode)
-            job["educational_qa_passed"] = True
+            self._stage_all(jobs, "VALIDATING")
+            for L in langs:
+                self.run_linguistic_and_pedagogical_qa(L, episode)
+            for j in jobs:
+                j["educational_qa_passed"] = True
 
-            self._stage(job, "TTS_SYNTHESIS")
-            self._job = job
-            render = self.produce_longform(episode, language, job_id, int(seed[:6], 16))
-            mp4 = render["mp4"]
-            meta = render["meta"]
+            self._stage_all(jobs, "TTS_SYNTHESIS")
+            render = self.produce_longform(episode, langs, job_key, narrator)
+            mp4, meta = render["mp4"], render["meta"]
 
-            self._stage(job, "QA_TECHNICAL", local_mp4_path=mp4)
-            report = self.run_quality_gate(render, meta, job_id)
-            job.update(technical_qa_passed=True, render_duration_sec=round(report["measurements"]["duration"], 2))
-            self._stage(job, "QA_PEDAGOGICAL")
+            self._stage_all(jobs, "QA_TECHNICAL", local_mp4_path=mp4)
+            report = self.run_quality_gate(render, meta, job_key)
+            for j in jobs:
+                j.update(technical_qa_passed=True, render_duration_sec=round(report["measurements"]["duration"], 2))
+            self._stage_all(jobs, "QA_PEDAGOGICAL")
 
             if self.dry_run:
                 logger.info("[DRY-RUN] upload skipped. MP4: %s", mp4)
-                return {"status": "DRY_RUN_OK", "job_id": job_id, "episode_id": episode_id, "language": language,
-                        "mp4": mp4, "thumbnail": render["thumbnail"], "quality": report,
-                        "duration_sec": job["render_duration_sec"], "elapsed_sec": round(time.time() - started, 1)}
+                return {"status": "DRY_RUN_OK", "job_id": job_key, "episode_id": episode_id, "languages": langs,
+                        "mp4": mp4, "dubs": render["dubs"], "thumbnail": render["thumbnail"], "quality": report,
+                        "duration_sec": main["render_duration_sec"], "elapsed_sec": round(time.time() - started, 1)}
 
             if self.stop_check and self.stop_check():
                 raise UploadError("factory stopped from Android before upload (video kept, will resume)")
 
-            self._stage(job, "UPLOADING")
-            video_id = self.upload_to_youtube(mp4, meta, language)
-            self._stage(job, "PROCESSING", youtube_video_id=video_id, youtube_privacy_status="private",
-                        processing_status="processing")
-            thumb_ok = self.set_thumbnail(video_id, render["thumbnail"], language)
+            self._stage_all(jobs, "UPLOADING")
+            video_id = self.upload_to_youtube(mp4, meta, primary)
+            self._stage_all(jobs, "PROCESSING", youtube_video_id=video_id, youtube_privacy_status="private",
+                            processing_status="processing")
+            thumb_ok = self.set_thumbnail(video_id, render["thumbnail"], primary)
 
-            proc = self.poll_processing(video_id, language)
+            proc = self.poll_processing(video_id, primary)
             if proc["processing_status"] in ("failed", "terminated"):
-                self._stage(job, "QUARANTINED", processing_status=proc["processing_status"],
-                            error_message="YouTube processing failed")
+                self._stage_all(jobs, "QUARANTINED", processing_status=proc["processing_status"],
+                                error_message="YouTube processing failed")
                 raise UploadError(f"YouTube processing {proc['processing_status']}")
             privacy = proc["privacy_status"]
             if proc["processing_status"] == "succeeded":
-                self._stage(job, "PROCESSED_PRIVATE", processing_status="succeeded", youtube_privacy_status=privacy)
-                privacy = self.publish(video_id, language, self.publish_privacy)
+                self._stage_all(jobs, "PROCESSED_PRIVATE", processing_status="succeeded", youtube_privacy_status=privacy)
+                privacy = self.publish(video_id, primary, self.publish_privacy)
                 final_state = "COMPLETED" if privacy in ("public", "unlisted") else "PROCESSED_PRIVATE"
-                self._stage(job, final_state, youtube_privacy_status=privacy)
             else:
                 final_state = "PROCESSING"  # next cycle reconciles + publishes
-                self._stage(job, final_state, processing_status=proc["processing_status"])
+            self._stage(main, final_state, youtube_privacy_status=privacy, processing_status=proc["processing_status"])
+            for j in jobs[1:]:  # dubbed tracks exist as files; YouTube's API cannot attach audio tracks
+                self._stage(j, "DUB_READY_FOR_STUDIO", strict=False, youtube_privacy_status=privacy,
+                            error_message=None, stage_detail=os.path.basename(render["dubs"][j["language"]]))
             if self.db.connected:
-                self.db.publication(job_id, video_id, language, privacy, proc["processing_status"])
+                self.db.publication(main["job_id"], video_id, primary, privacy, proc["processing_status"])
+                if render["dubs"]:
+                    self.db.event("DUB_TRACKS_READY", f"{video_id}: dubbed audio for {', '.join(render['dubs'])} is in "
+                                  "the run artifacts. YouTube Studio > Languages > Add language > Dub (API has no endpoint).",
+                                  "WARNING", details={"video_id": video_id, "tracks": list(render["dubs"])})
 
-            summary = {"status": "SUCCESS", "job_id": job_id, "episode_id": episode_id, "language": language,
+            summary = {"status": "SUCCESS", "job_id": main["job_id"], "episode_id": episode_id, "language": primary,
+                       "languages": langs, "narrator": narrator, "distribution_mode": self.distribution_mode,
                        "youtube_video_id": video_id, "watch_url": f"https://youtu.be/{video_id}",
                        "state": final_state, "processing_status": proc["processing_status"],
                        "privacy_status": privacy, "requested_privacy": self.publish_privacy,
                        "thumbnail_set": thumb_ok, "quality_standard": STANDARD_ID,
                        "loudness_lufs": report["measurements"]["loudness_lufs"],
-                       "duration_sec": job["render_duration_sec"],
+                       "duration_sec": main["render_duration_sec"], "dub_tracks": list(render["dubs"]),
                        "elapsed_sec": round(time.time() - started, 1), "cost_usd": 0.0}
-            with open(os.path.join(OUTPUT_DIR, f"{job_id}_summary.json"), "w") as fh:
+            with open(os.path.join(OUTPUT_DIR, f"{job_key}_summary.json"), "w") as fh:
                 json.dump(summary, fh, indent=2)
             return summary
 
         except QuotaExceeded as e:
-            self._stage(job, "QUOTA_PAUSED", error_message=str(e)[:500])
+            self._stage_all(jobs, "QUOTA_PAUSED", error_message=str(e)[:500])
             raise
-        except QualityGateError as e:
-            self._stage(job, "FAILED_QA", error_message=str(e)[:500])
+        except (QualityGateError, tts.VoiceQualityError) as e:
+            self._stage_all(jobs, "FAILED_QA", error_message=str(e)[:500])
             raise
         except LanguageNotReady:
             raise
         except UploadError as e:
-            self._stage(job, "FAILED_UPLOAD", error_message=str(e)[:500])
+            self._stage_all(jobs, "FAILED_UPLOAD", error_message=str(e)[:500])
             raise
         except Exception as e:  # TTS / render crash -> quarantine this episode, factory keeps going
-            self._stage(job, "QUARANTINED", error_message=f"{type(e).__name__}: {str(e)[:480]}")
+            self._stage_all(jobs, "QUARANTINED", error_message=f"{type(e).__name__}: {str(e)[:480]}")
             raise
 
 
 def main():
-    ap = argparse.ArgumentParser(description="SmartKids single-job production engine")
-    ap.add_argument("--episode", default="EP-COLORS-5-V1")
-    ap.add_argument("--language", default="EN")
+    ap = argparse.ArgumentParser(description="SmartKids production engine (one episode)")
+    ap.add_argument("--episode", default="EP-COLORS-MEGA-V1")
+    ap.add_argument("--language", default="EN", help="one language (per-language modes)")
+    ap.add_argument("--languages", default="", help="space/comma list -> one multi-audio video (first = on-screen)")
+    ap.add_argument("--narrator", default="", choices=["", "female", "male"])
+    ap.add_argument("--mode", default="", help="distribution mode override")
     ap.add_argument("--strict-supabase", action="store_true")
     ap.add_argument("--dry-run", action="store_true", help="render + QA only; no YouTube, no Supabase writes")
-    ap.add_argument("--publish", default="PRIVATE", choices=["PRIVATE", "UNLISTED", "PUBLIC", "AUTO"],
-                    help="privacy to set after processing + quality gate")
+    ap.add_argument("--publish", default="", choices=["", "PRIVATE", "UNLISTED", "PUBLIC", "AUTO"],
+                    help="privacy after processing + quality gate (default: automation_control.publish_mode)")
+    ap.add_argument("--respect-stop", action="store_true", help="Android STOP (enabled=false) cancels before upload")
     args = ap.parse_args()
-    engine = ProductionEngine(strict_supabase=args.strict_supabase, dry_run=args.dry_run, publish_mode=args.publish)
-    result = engine.run_production(args.episode, args.language)
-    print(json.dumps(result, indent=2))
+    langs = [l for l in re.split(r"[\s,]+", args.languages.upper()) if l] or [args.language.upper()]
+    db = SupabaseREST(dry_run=args.dry_run)
+    control = (db.get_control() if db.connected else None) or {}
+    mode = args.mode.upper() or ("SINGLE_CHANNEL_MULTI_AUDIO" if len(langs) > 1 else
+                                 str(control.get("distribution_mode") or LANGS.DEFAULT_DISTRIBUTION_MODE))
+    stop = (lambda: not bool((db.get_control() or {}).get("enabled"))) if args.respect_stop and db.connected else None
+    engine = ProductionEngine(strict_supabase=args.strict_supabase, dry_run=args.dry_run, db=db, stop_check=stop,
+                              publish_mode=args.publish or str(control.get("publish_mode") or "PRIVATE"),
+                              distribution_mode=mode, narrator_mode=str(control.get("narrator_mode") or "alternate"))
+    try:
+        if len(langs) > 1:
+            result = engine.run_multi_audio(args.episode, langs, args.narrator or None)
+        else:
+            result = engine.run_production(args.episode, langs[0], args.narrator or None)
+    except LanguageNotReady as e:
+        logger.warning("LANGUAGE_PAUSED: %s", e)
+        if db.connected:
+            db.event("LANGUAGE_PAUSED", str(e), "WARNING")
+            db.patch_control({"current_job_id": None, "last_heartbeat": utc_now_iso()})
+        print(json.dumps({"status": "LANGUAGE_PAUSED", "reason": str(e)}))
+        return
+    except Exception as e:
+        if db.connected:
+            db.event("EPISODE_PRODUCTION_ERROR", f"{args.episode} [{'+'.join(langs)}]: {str(e)[:300]}", "ERROR")
+            db.patch_control({"current_job_id": None, "last_run_at": utc_now_iso(),
+                              "failure_count": int(control.get("failure_count") or 0) + 1})
+        raise
+    if db.connected:
+        if result.get("status") == "SUCCESS":
+            db.event("EPISODE_PRODUCTION_SUCCESS", f"{args.episode} [{'+'.join(langs)}] -> {result['watch_url']}",
+                     details=result)
+        db.patch_control({"current_job_id": None, "last_run_at": utc_now_iso(), "failure_count": 0})
+    print(json.dumps(result, indent=2, default=str))
 
 
 if __name__ == "__main__":

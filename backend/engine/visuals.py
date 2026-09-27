@@ -60,15 +60,39 @@ def accessible_palette(bg_hex: str) -> Dict[str, Any]:
     return {"bg": bg, "fg": white, "contrast": round(contrast(white, bg), 2)}
 
 
-def _font(px: int) -> ImageFont.FreeTypeFont:
-    return ImageFont.truetype(FONT_BOLD, px)
+FONT_ARABIC = "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf"
+FONT_DEVANAGARI = "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf"
+
+
+def _font_path(text: str) -> str:
+    """Pick the font by script (the 10 languages: Latin/Turkish/Cyrillic -> DejaVu, Arabic, Devanagari).
+    Complex scripts are shaped by Pillow's raqm layout (HarfBuzz + FriBiDi), incl. right-to-left."""
+    if any("\u0600" <= ch <= "\u06FF" or "\u0750" <= ch <= "\u077F" for ch in text):
+        return FONT_ARABIC
+    if any("\u0900" <= ch <= "\u097F" for ch in text):
+        return FONT_DEVANAGARI
+    return FONT_BOLD
+
+
+def _font(px: int, text: str = "") -> ImageFont.FreeTypeFont:
+    path = _font_path(text)
+    if path != FONT_BOLD and not os.path.exists(path):
+        raise FileNotFoundError(f"{path} missing (apt install fonts-noto-core)")
+    return ImageFont.truetype(path, px)
 
 
 def _fit_font(text: str, max_w: int, start: int, min_px: int = MIN_TEXT_PX) -> ImageFont.FreeTypeFont:
     px = start
-    while px > min_px and _font(px).getlength(text) > max_w:
+    while px > min_px and _font(px, text).getlength(text) > max_w:
         px -= 4
-    return _font(max(px, min_px))
+    return _font(max(px, min_px), text)
+
+
+def upper(s: str, language: str = "EN") -> str:
+    """Language-aware upper case (Turkish i -> İ)."""
+    if (language or "").upper() in ("TR", "AZ"):
+        s = s.replace("i", "İ")
+    return s.upper()
 
 
 # --------------------------------------------------------------------------- sprites
@@ -384,17 +408,18 @@ def render_segment(pack: Dict[str, Any], v: Dict[str, Any], out_dir: str, prefix
         hero.save(p_hero)
         frames.append({"bg": p_bg, "hero": p_hero, "hero_y": hero_y})
 
-    noun = pack["noun"]
+    ui = pack["ui"]
+    lang = pack.get("language", "EN")
     if kind == "countdown":
         for n in (3, 2, 1):
             im, d, bg, fg, ch = _canvas(bg_hex, decor, progress)
             style = v.get("style")
             if style == "mystery":
                 hero = _badge(n)
-                _text(d, ch, (W / 2, 745), f"Guess the next {noun}!", 110, fg, bg)
+                _text(d, ch, (W / 2, 745), ui["guess_next"], 110, fg, bg)
             elif style == "quiz":
                 hero = _tiles(v["choices"])
-                _text(d, ch, (W / 2, 690), f"Which one is {it['key']}?", 96, fg, bg)
+                _text(d, ch, (W / 2, 690), it["which_one"], 96, fg, bg)
                 b = _badge(n)
                 im.alpha_composite(b.resize((190, 190)), (W // 2 - 95, 790))
             else:  # review
@@ -411,50 +436,50 @@ def render_segment(pack: Dict[str, Any], v: Dict[str, Any], out_dir: str, prefix
     if kind == "title":
         hero = _row([i["pic"] for i in items], 150, 24)
         _text(d, ch, (W / 2, 745), v.get("title", pack["thumb_text"]), 140, fg, bg)
-        _bubble(d, ch, "Let's learn and play!")
+        _bubble(d, ch, ui["lets_play"])
     elif kind == "mystery":
         hero = emoji_sprite("❓", 330)
-        _text(d, ch, (W / 2, 745), f"Guess the next {noun}!", 110, fg, bg)
-        _bubble(d, ch, "Get ready!")
+        _text(d, ch, (W / 2, 745), ui["guess_next"], 110, fg, bg)
+        _bubble(d, ch, ui["get_ready"])
     elif kind in ("reveal", "repeat"):
         hero = emoji_sprite(it["pic"], 380)
         _text(d, ch, (W / 2, 745), it["label"], 170, fg, bg)
         if it.get("phrase") and pack["family"] == "colors":
-            _text(d, ch, (W / 2, 862), it["phrase"].capitalize(), 64, fg, bg, max_w=1300)
-        _bubble(d, ch, f"Can you say {it['key']}?" if kind == "repeat" else f"It's {it['key']}!")
+            _text(d, ch, (W / 2, 862), it["phrase"][:1].upper() + it["phrase"][1:], 64, fg, bg, max_w=1300)
+        _bubble(d, ch, ui["can_you_say"].replace("{Name}", it["Name"]) if kind == "repeat" else it["its"])
     elif kind == "example":
         hero = emoji_sprite(v["emoji"], 360)
-        _text(d, ch, (W / 2, 745), v["caption"].capitalize() if pack["family"] == "colors" else it["label"], 130, fg, bg)
+        cap = v["caption"]
+        _text(d, ch, (W / 2, 745), cap[:1].upper() + cap[1:], 130, fg, bg)
         if pack["family"] == "colors":
-            _text(d, ch, (W / 2, 862), f"is {it['key']}!", 72, fg, bg)
-        _bubble(d, ch, f"{it['label'].title()}!")
+            _text(d, ch, (W / 2, 862), it["its"], 72, fg, bg)
+        _bubble(d, ch, f"{it['Name']}!")
     elif kind in ("quiz", "answer"):
         hero = _tiles(v["choices"], correct=v.get("correct", -1), dim_wrong=kind == "answer")
         hero_y = 330
-        q = f"Which one is {it['key']}?" if pack["family"] == "colors" else f"Which one is the {it['key']}?"
-        _text(d, ch, (W / 2, 690), q, 96, fg, bg)
-        _bubble(d, ch, "Guess!" if kind == "quiz" else "Yes! Great job!")
+        _text(d, ch, (W / 2, 690), it["which_one"], 96, fg, bg)
+        _bubble(d, ch, ui["guess"] if kind == "quiz" else ui["yes_great"])
     elif kind in ("review", "review_answer"):
         hero = emoji_sprite(it["pic"], 380)
         if kind == "review_answer":
             _text(d, ch, (W / 2, 745), it["label"], 170, fg, bg)
-            _bubble(d, ch, "You got it!")
+            _bubble(d, ch, ui["you_got_it"])
         else:
-            _text(d, ch, (W / 2, 745), f"What {noun} is this?", 110, fg, bg)
-            _bubble(d, ch, "Shout it out!")
+            _text(d, ch, (W / 2, 745), ui["what_is_this"], 110, fg, bg)
+            _bubble(d, ch, ui["shout"])
     elif kind in ("chant", "chant_intro"):
         hl = v.get("item", -1) if kind == "chant" else -1
         hero = _row([i["pic"] for i in items], 140, 24, highlight=hl)
-        _text(d, ch, (W / 2, 745), items[hl]["label"] if hl >= 0 else "Sing along!", 150, fg, bg)
-        _bubble(d, ch, "Sing with me!")
+        _text(d, ch, (W / 2, 745), items[hl]["label"] if hl >= 0 else ui["sing_along"], 150, fg, bg)
+        _bubble(d, ch, ui["sing_with_me"])
     elif kind == "dance":
         hero = _row(["💃", "🕺", "🎵", "👏"], 220, 50)
-        _text(d, ch, (W / 2, 745), "Dance break!", 150, fg, bg)
-        _bubble(d, ch, "Wiggle and clap!")
+        _text(d, ch, (W / 2, 745), ui["dance_break"], 150, fg, bg)
+        _bubble(d, ch, ui["wiggle"])
     elif kind == "outro":
         hero = _row([i["pic"] for i in items], 150, 24)
-        _text(d, ch, (W / 2, 745), "Great job!", 160, fg, bg)
-        _bubble(d, ch, "See you next time!")
+        _text(d, ch, (W / 2, 745), ui["great_job"], 160, fg, bg)
+        _bubble(d, ch, ui["see_you"])
     else:
         raise ValueError(kind)
     checks_all += ch
@@ -471,7 +496,7 @@ def render_longform_thumbnail(pack: Dict[str, Any], out_path: str) -> str:
         a0, a1 = i * 360 / len(cols), (i + 1) * 360 / len(cols)
         d.pieslice([-400, -500, tw + 400, th + 700], a0, a1, fill=c + (255,))
     d.ellipse([tw / 2 - 330, th / 2 - 250, tw / 2 + 330, th / 2 + 330], fill=(255, 255, 255, 235))
-    words = pack["thumb_text"].upper()
+    words = upper(pack["thumb_text"], pack.get("language", "EN"))
     f = _fit_font(words, 1150, 130, 64)
     x0 = tw / 2 - f.getlength(words) / 2
     d.rounded_rectangle([x0 - 30, 30, x0 + f.getlength(words) + 30, 30 + f.size + 50], radius=40, fill=(255, 255, 255, 255),

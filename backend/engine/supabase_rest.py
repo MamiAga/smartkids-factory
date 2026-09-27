@@ -91,11 +91,38 @@ class SupabaseREST:
         self.patch_control(payload)
 
     # ------------------------------------------------------------ pipeline_jobs
+    # columns that exist since the first schema; newer ones come from docs/sql/2026-09-28_multilanguage.sql
+    JOB_BASE_COLUMNS = {"job_id", "episode_id", "language", "state", "deterministic_seed", "cost_usd", "error_message",
+                        "technical_qa_passed", "educational_qa_passed", "render_duration_sec", "youtube_video_id",
+                        "youtube_privacy_status", "processing_status", "local_mp4_path", "updated_at"}
+    _job_extra_ok = True
+
     def upsert_job(self, record: Dict[str, Any], strict: bool = False) -> None:
+        """Upsert a job row. Newer optional columns (narrator, distribution_mode, progress_pct, stage_detail)
+        are sent when the migration is applied; if the table does not have them yet the row is re-sent
+        without them, so production never fails because of a missing optional column."""
         record = dict(record)
         record["updated_at"] = utc_now_iso()
-        self._safe("POST", "pipeline_jobs?on_conflict=job_id", [record],
-                   prefer="resolution=merge-duplicates,return=minimal", strict=strict)
+        if not SupabaseREST._job_extra_ok:
+            record = {k: v for k, v in record.items() if k in self.JOB_BASE_COLUMNS}
+        try:
+            self._request("POST", "pipeline_jobs?on_conflict=job_id", [record],
+                          prefer="resolution=merge-duplicates,return=minimal")
+            return
+        except urllib.error.HTTPError as e:
+            detail = e.read().decode("utf-8", "replace")[:500]
+            extra = set(record) - self.JOB_BASE_COLUMNS
+            if e.code in (400, 404) and extra and ("column" in detail or "PGRST204" in detail):
+                logger.warning("[Supabase] pipeline_jobs has no %s yet (run docs/sql/2026-09-28_multilanguage.sql)",
+                               sorted(extra))
+                SupabaseREST._job_extra_ok = False
+                return self.upsert_job(record, strict=strict)
+            msg = f"[Supabase] POST pipeline_jobs -> HTTP {e.code}: {detail}"
+        except Exception as e:  # network etc.
+            msg = f"[Supabase] POST pipeline_jobs failed: {e}"
+        if strict:
+            raise RuntimeError(msg)
+        logger.warning(msg)
 
     def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
         rows = self._safe("GET", f"pipeline_jobs?job_id=eq.{urllib.parse.quote(job_id)}&select=*")

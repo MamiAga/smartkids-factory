@@ -1,4 +1,4 @@
-"""Long-form (SKQS-2) audio + video assembly. Used by ProductionEngine for PACKS episodes."""
+"""Long-form (SKQS) audio + video assembly for one master episode and 1..10 language tracks."""
 import logging
 import os
 import subprocess
@@ -8,7 +8,6 @@ import numpy as np
 import soundfile as sf
 
 from backend.engine import audio_synth, tts, visuals
-from backend.engine.longform import bonus_round
 
 logger = logging.getLogger("smartkids.longform")
 SR = 48000
@@ -41,85 +40,108 @@ def _strip_tags(text: str) -> str:
     return re.sub(r"\[[a-z]+\]\s*", "", text)
 
 
-def narrate(segs: List[Dict[str, Any]], language: str, scratch: str, job_id: str, start: int = 0) -> None:
+def _count_words(text: str) -> int:
+    return sum(1 for w in _strip_tags(text).split() if any(ch.isalnum() for ch in w))
+
+
+def narrate(segs: List[Dict[str, Any]], language: str, scratch: str, job_id: str) -> None:
     for s in segs:  # spoken "Three! Two! One!" clips, synthesised once and reused
         for _, txt in s.get("voice_parts", []):
-            if txt not in _PART_CACHE:
-                wav = os.path.join(scratch, f"{job_id}_part_{abs(hash(txt)) % 10**6}.wav")
+            key = f"{language}|{txt}"
+            if key not in _PART_CACHE:
+                wav = os.path.join(scratch, f"{job_id}_{language}_part_{abs(hash(key)) % 10**8}.wav")
                 tts.synth(txt, language, wav)
-                _PART_CACHE[txt] = wav
-    for i, s in enumerate(segs[start:], start=start):
+                _PART_CACHE[key] = wav
+    for i, s in enumerate(segs):
         if s.get("voice_path") or not s["text"]:
             continue
-        wav = os.path.join(scratch, f"{job_id}_n{i:03d}_{abs(hash(s['text'])) % 10**6}.wav")
+        wav = os.path.join(scratch, f"{job_id}_{language}_n{i:03d}_{abs(hash(s['text'])) % 10**8}.wav")
         s["speech_sec"] = tts.synth(s["text"], language, wav)
         s["voice_path"] = wav
-        s["words"] = len(_strip_tags(s["text"]).split())
+        s["words"] = _count_words(s["text"])
+        s["language"] = language
 
 
-def _durations(segs: List[Dict[str, Any]]) -> float:
+def _durations(tracks: Dict[str, List[Dict[str, Any]]]) -> float:
+    """Shared timeline: every segment lasts as long as its LONGEST narration over all language tracks,
+    so one rendered video fits every dubbed audio track (single-channel multi-audio mode)."""
+    langs = list(tracks)
+    n = len(tracks[langs[0]])
     total = 0.0
-    for s in segs:
-        if s["fixed"]:
-            s["dur"] = s["fixed"]
+    for i in range(n):
+        base = tracks[langs[0]][i]
+        if base["fixed"]:
+            dur = base["fixed"]
         else:
-            need = VOICE_LEAD_IN + s.get("speech_sec", 0.0) + 0.55 + (s.get("pad") or 0)
-            s["dur"] = round(max(HOLD.get(s["kind"], 3.0), need), 3)
-        s["t0"] = total
-        total += s["dur"]
+            need = max(VOICE_LEAD_IN + t[i].get("speech_sec", 0.0) + 0.55 + (t[i].get("pad") or 0) for t in tracks.values())
+            dur = round(max(HOLD.get(base["kind"], 3.0), need), 3)
+        for t in tracks.values():
+            t[i]["dur"], t[i]["t0"] = dur, total
+        total += dur
+    return total
+
+
+def plan_tracks(pack, tracks: Dict[str, List[Dict[str, Any]]], scratch, job_id, seed) -> float:
+    """TTS every language track, fix shared durations, add bonus rounds / trim (applied to ALL tracks
+    in lockstep) until the episode length is inside the standard."""
+    from backend.engine.longform import bonus_round
+    for segs in tracks.values():
+        for s in segs:  # move 'pad' from visual kwargs into the segment
+            s["pad"] = s["visual"].pop("pad", 0) if "pad" in s["visual"] else s.get("pad", 0)
+    for lang, segs in tracks.items():
+        narrate(segs, lang, scratch, job_id)
+    total = _durations(tracks)
+    extra = 0
+    while total < MIN_TARGET and extra < 3:
+        extra += 1
+        for lang, segs in tracks.items():
+            at = next(i for i, s in enumerate(segs) if s["kind"] == "chant_intro")
+            segs[at:at] = bonus_round(pack, seed + extra, lang)
+            narrate(segs, lang, scratch, job_id)
+        total = _durations(tracks)
+        logger.info("[Long-form] added bonus round %d -> %.1fs", extra, total)
+    n_items = len(pack["items"])
+    ref = next(iter(tracks.values()))
+    while total > MAX_TARGET:
+        chants = [i for i, x in enumerate(ref) if x["kind"] == "chant"]
+        reviews = [i for i, x in enumerate(ref) if x["kind"] == "review"]
+        examples = [i for i, x in enumerate(ref) if x["kind"] == "example"]
+        cut = None
+        if len(chants) > n_items:                       # 1) sing the list once instead of twice
+            cut, why = (chants[-1], chants[-1] + 1), "second chant pass"
+        elif len(reviews) > 4:                          # 2) shorter review round (keep >= 4 questions)
+            cut, why = (reviews[-1], reviews[-1] + 3), "review question"
+        elif len(examples) > 2 * n_items:               # 3) 2 examples per item instead of 3
+            per = {}
+            for i in examples:
+                per.setdefault(ref[i]["visual"]["item"], []).append(i)
+            victim = max((v for v in per.values() if len(v) > 2), key=lambda v: v[-1])[-1]
+            cut, why = (victim, victim + 1), "third example"
+        elif reviews:                                   # 4) drop the remaining review questions one by one
+            cut, why = (reviews[-1], reviews[-1] + 3), "review question (below 4)"
+        elif any(x["kind"] == "repeat" and (x.get("pad") or 0) > 1.0 for x in ref):
+            for segs in tracks.values():                # 5) shorter "repeat after me" pauses
+                for x in segs:
+                    if x["kind"] == "repeat":
+                        x["pad"] = 1.0
+            why = "repeat pauses"
+        else:
+            break
+        if cut:
+            for segs in tracks.values():
+                del segs[cut[0]:cut[1]]
+        total = _durations(tracks)
+        logger.info("[Long-form] trimmed %s -> %.1fs", why, total)
+    logger.info("[Long-form] %d segments, %.1f s (%.2f min), tracks=%s", len(ref), total, total / 60, ",".join(tracks))
     return total
 
 
 def plan_audio(pack, segs, language, scratch, job_id, seed) -> float:
-    """TTS everything, fix durations, add bonus rounds until the minimum length is reached."""
-    for s in segs:  # move 'pad' from visual kwargs into the segment
-        s["pad"] = s["visual"].pop("pad", 0) if "pad" in s["visual"] else s.get("pad", 0)
-    narrate(segs, language, scratch, job_id)
-    total = _durations(segs)
-    extra = 0
-    while total < MIN_TARGET and extra < 3:
-        extra += 1
-        at = next(i for i, s in enumerate(segs) if s["kind"] == "chant_intro")
-        bonus = bonus_round(pack, seed + extra)
-        segs[at:at] = bonus
-        narrate(segs, language, scratch, job_id)
-        total = _durations(segs)
-        logger.info("[Long-form] added bonus round %d -> %.1fs", extra, total)
-    n_items = len(pack["items"])
-    while total > MAX_TARGET:
-        chants = [i for i, x in enumerate(segs) if x["kind"] == "chant"]
-        reviews = [i for i, x in enumerate(segs) if x["kind"] == "review"]
-        examples = [i for i, x in enumerate(segs) if x["kind"] == "example"]
-        if len(chants) > n_items:                       # 1) sing the list once instead of twice
-            del segs[chants[-1]]
-            why = "second chant pass"
-        elif len(reviews) > 4:                          # 2) shorter review round (keep >= 4 questions)
-            del segs[reviews[-1]:reviews[-1] + 3]
-            why = "review question"
-        elif len(examples) > 2 * n_items:               # 3) 2 examples per item instead of 3
-            per = {}
-            for i in examples:
-                per.setdefault(segs[i]["visual"]["item"], []).append(i)
-            victim = max((v for v in per.values() if len(v) > 2), key=lambda v: v[-1])[-1]
-            del segs[victim]
-            why = "third example"
-        elif reviews:                                   # 4) drop the remaining review questions one by one
-            del segs[reviews[-1]:reviews[-1] + 3]
-            why = "review question (below 4)"
-        elif any(x["kind"] == "repeat" and (x.get("pad") or 0) > 1.0 for x in segs):
-            for x in segs:                              # 5) shorter "repeat after me" pauses
-                if x["kind"] == "repeat":
-                    x["pad"] = 1.0
-            why = "repeat pauses"
-        else:
-            break
-        total = _durations(segs)
-        logger.info("[Long-form] trimmed %s -> %.1fs", why, total)
-    logger.info("[Long-form] %d segments, %.1f s (%.2f min)", len(segs), total, total / 60)
-    return total
+    """Single-language wrapper (one channel per language)."""
+    return plan_tracks(pack, {language: segs}, scratch, job_id, seed)
 
 
-def mix_audio(segs, total: float, scratch: str, out_wav: str, seed: int) -> Dict[str, Any]:
+def mix_audio(segs, total: float, scratch: str, out_wav: str, seed: int, language: str = "EN") -> Dict[str, Any]:
     n = int((total + 0.5) * SR)
     voice = np.zeros((n, 2), dtype=np.float32)
     fx = np.zeros((n, 2), dtype=np.float32)
@@ -130,7 +152,7 @@ def mix_audio(segs, total: float, scratch: str, out_wav: str, seed: int) -> Dict
             i = int((s["t0"] + VOICE_LEAD_IN) * SR)
             voice[i:i + len(v)] += v[: n - i]
         for off, txt in s.get("voice_parts", []):
-            v = _load48(_PART_CACHE[txt])
+            v = _load48(_PART_CACHE[f"{s.get('language') or language}|{txt}"])
             i = int((s["t0"] + off) * SR)
             voice[i:i + len(v)] += v[: n - i]
         for off, kind in s["sfx"]:
@@ -153,7 +175,7 @@ def mix_audio(segs, total: float, scratch: str, out_wav: str, seed: int) -> Dict
     gain = np.pad(gain, (0, n - len(gain)), constant_values=1.0)
     mix = voice * 1.0 + fx * 0.45 + music * 0.55 * gain[:, None]
     mix /= max(1.0, float(np.max(np.abs(mix))) / 0.95)
-    raw = os.path.join(scratch, "longform_raw.wav")
+    raw = os.path.join(scratch, f"longform_raw_{language}.wav")
     sf.write(raw, mix, SR, subtype="PCM_16")
     # 2-pass EBU R128 -> -16 LUFS / -1.5 dBTP
     import json
