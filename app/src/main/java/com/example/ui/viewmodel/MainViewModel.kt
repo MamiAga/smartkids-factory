@@ -10,6 +10,18 @@ import com.example.data.worker.YouTubeUploadStateMachine
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
+fun distributionLabel(mode: String): String = when (mode) {
+    "SINGLE_CHANNEL" -> "Tek kanal, her dil ayrı video"
+    "SINGLE_CHANNEL_MULTI_AUDIO" -> "Tek kanal, tek video + dil ses kanalları"
+    else -> "Her dil kendi kanalında"
+}
+
+fun narratorLabel(mode: String): String = when (mode) {
+    "female" -> "Hep kız"
+    "male" -> "Hep erkek"
+    else -> "Sırayla (kız / erkek)"
+}
+
 enum class AppTab(val title: String) {
     CONTROL_CENTER("Fabrika Kumandası"),
     PIPELINE("İş Akışı"),
@@ -250,77 +262,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Previously this advanced the job locally through fake states (fake "yt_*" video ids, fake
+     * "Oracle 200GB" logs). Job states are now written ONLY by the cloud runner into Supabase;
+     * the phone just displays them.
+     */
     fun stepPipelineJob(job: PipelineJobEntity) {
-        viewModelScope.launch {
-            // YouTubeUploadStateMachine lifecycle
-            val initialStatus = try {
-                YouTubeUploadStateMachine.UploadStatus.valueOf(job.status)
-            } catch (e: Exception) {
-                YouTubeUploadStateMachine.UploadStatus.RENDERED
-            }
-
-            val stateMachine = YouTubeUploadStateMachine(job.jobId, initialStatus)
-
-            val targetStatus = when (initialStatus) {
-                YouTubeUploadStateMachine.UploadStatus.RENDERED -> YouTubeUploadStateMachine.UploadStatus.UPLOADING
-                YouTubeUploadStateMachine.UploadStatus.UPLOADING -> YouTubeUploadStateMachine.UploadStatus.UPLOADED
-                YouTubeUploadStateMachine.UploadStatus.UPLOADED -> YouTubeUploadStateMachine.UploadStatus.PROCESSING
-                YouTubeUploadStateMachine.UploadStatus.PROCESSING -> YouTubeUploadStateMachine.UploadStatus.PROCESSED
-                YouTubeUploadStateMachine.UploadStatus.PROCESSED -> YouTubeUploadStateMachine.UploadStatus.PUBLISHED
-                YouTubeUploadStateMachine.UploadStatus.PUBLISHED -> YouTubeUploadStateMachine.UploadStatus.DELETE_LOCAL_FILE
-                YouTubeUploadStateMachine.UploadStatus.DELETE_LOCAL_FILE -> YouTubeUploadStateMachine.UploadStatus.ARCHIVED_ZERO_BLOAT
-                else -> YouTubeUploadStateMachine.UploadStatus.RENDERED
-            }
-
-            stateMachine.transitionTo(targetStatus)
-            val nextState = stateMachine.currentStatus.name
-            val localDeleted = stateMachine.canSafelyDeleteLocalFile()
-
-            val updatedJob = job.copy(
-                status = nextState,
-                localFileDeleted = localDeleted,
-                updatedAt = System.currentTimeMillis(),
-                logMessage = when (nextState) {
-                    "UPLOADING" -> "YouTube OAuth parçalı yükleme (resumable) akışı başlatılıyor (günlük 100 insert sınırı, 1 birim)."
-                    "UPLOADED" -> "Video YouTube'a başarıyla yüklendi. Video ID: yt_${job.languageCode.lowercase()}_${job.episodeId}."
-                    "PROCESSING" -> "YouTube video işleme durumu denetleniyor (arka planda sorgulama)..."
-                    "PROCESSED" -> "YouTube video işleme tamamlandı. Zamanlanmış yayına hazır."
-                    "PUBLISHED" -> "Video ${job.languageCode} kanalında yayında! Veritabanı durumu onaylandı."
-                    "DELETE_LOCAL_FILE" -> "KRİTİK GÜVENLİK KURALI: Yerel MP4 güvenle silindi. Oracle 200GB diskte 0 bayt tutuluyor."
-                    "ARCHIVED_ZERO_BLOAT" -> "İş akışı döngüsü başarıyla tamamlandı ve arşivlendi. Sıfır disk sızıntısı sağlandı."
-                    else -> "Durum $nextState olarak güncellendi"
-                }
-            )
-            repository.updateJob(updatedJob)
-            _notification.value = UiNotification("${job.jobId} görevi '$nextState' durumuna geçirildi.")
-        }
+        _notification.value = UiNotification(
+            "${job.jobId}: aşamalar bulutta (GitHub Actions) ilerler; telefondan elle ilerletilemez. Durum: ${job.status}"
+        )
+        syncFromSupabase()
     }
 
-    fun dispatchProductionWorkflow(episodeId: String, languageCode: String) {
+    fun dispatchProductionWorkflow(episodeId: String, languageCode: String) =
+        dispatchTestProduction(episodeId, listOf(languageCode), automationControl.value?.distributionMode ?: "MULTI_CHANNEL",
+            automationControl.value?.narratorMode ?: "alternate", false)
+
+    /** Manual test run from the phone: episode + languages + distribution + narrator (+ dry run = no upload). */
+    fun dispatchTestProduction(episodeId: String, languages: List<String>, mode: String, narrator: String, dryRun: Boolean) {
         viewModelScope.launch {
             _isSyncing.value = true
-            _notification.value = UiNotification("GitHub Actions 'Production Pipeline' tetikleniyor ($episodeId, $languageCode)...")
-            val result = repository.triggerGitHubWorkflowDispatch(episodeId, languageCode)
-            if (result.isSuccess) {
-                val newJob = PipelineJobEntity(
-                    jobId = "JOB-$languageCode-$episodeId-${System.currentTimeMillis() % 1000}",
-                    episodeId = episodeId,
-                    title = "SmartKids Bölüm: $episodeId ($languageCode)",
-                    languageCode = languageCode,
-                    status = "PLANNED",
-                    deterministicSeed = repository.calculateDeterministicSeed(episodeId, languageCode, "2.0.0"),
-                    renderDurationSeconds = 0.0,
-                    costUsd = 0.0,
-                    technicalQaPassed = true,
-                    educationalQaPassed = true,
-                    logMessage = "GitHub Actions workflow_dispatch ile bulut üretimi tetiklendi. Runner: ubuntu-24.04-arm"
-                )
-                repository.saveJob(newJob)
-                _notification.value = UiNotification("✅ GitHub Actions Production Pipeline başlatıldı! Runner devreye giriyor.")
+            _notification.value = UiNotification("GitHub Actions test üretimi tetikleniyor ($episodeId, ${languages.joinToString(" ")})...")
+            val result = repository.triggerGitHubWorkflowDispatch(episodeId, languages, mode, narrator, dryRun)
+            _notification.value = if (result.isSuccess) {
+                UiNotification("✅ Tetiklendi: seslendirme ${languages.size} dil için paralel sunucularda başlıyor. Gerçek durum Supabase'ten gelecek (zaten yüklenen dil tekrar yüklenmez).")
             } else {
-                _notification.value = UiNotification("❌ GitHub tetikleme hatası: ${result.exceptionOrNull()?.message}", isError = true)
+                UiNotification("❌ GitHub tetikleme hatası: ${result.exceptionOrNull()?.message}", isError = true)
             }
             _isSyncing.value = false
+            repository.syncFromSupabaseCloud()
         }
     }
 
@@ -348,37 +318,48 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * START: Supabase enabled=true (must succeed) -> dispatch smartkids_factory.yml run_now=true.
+     * STOP : Supabase enabled=false. The runner re-checks `enabled` before every job and before
+     *        every upload, so STOP takes effect without the phone staying online.
+     * Only ONE workflow is used for production, so START can no longer create two parallel
+     * productions (old behaviour: production_pipeline dispatch + hourly factory both uploading).
+     */
     fun toggleFactory(enabled: Boolean) {
         viewModelScope.launch {
-            repository.toggleAutomationControl(enabled)
+            _isSyncing.value = true
+            val ok = repository.toggleAutomationControl(enabled)
+            if (!ok) {
+                _notification.value = UiNotification(
+                    "❌ Supabase'e yazılamadı (internet / RLS / anahtar). Fabrika durumu DEĞİŞMEDİ.",
+                    isError = true
+                )
+                _isSyncing.value = false
+                return@launch
+            }
             if (enabled) {
-                val activeLangsJson = repository.automationControl.firstOrNull()?.activeLanguagesJson
-                val targetLang = parseActiveLanguage(activeLangsJson)
-                val targetEpisode = "EP-COLORS-5-V1"
-                _notification.value = UiNotification("🚀 START: GitHub Actions Production Pipeline ($targetEpisode, $targetLang) tetikleniyor...")
-                val result = repository.triggerGitHubWorkflowDispatch(targetEpisode, targetLang)
-                if (result.isSuccess) {
-                    val newJob = PipelineJobEntity(
-                        jobId = "JOB-$targetLang-$targetEpisode-${System.currentTimeMillis() % 1000}",
-                        episodeId = targetEpisode,
-                        title = "SmartKids Bölüm: $targetEpisode ($targetLang)",
-                        languageCode = targetLang,
-                        status = "PLANNED",
-                        deterministicSeed = repository.calculateDeterministicSeed(targetEpisode, targetLang, "2.0.0"),
-                        renderDurationSeconds = 0.0,
-                        costUsd = 0.0,
-                        technicalQaPassed = true,
-                        educationalQaPassed = true,
-                        logMessage = "Android START tuşu ile GitHub Actions workflow_dispatch tetiklendi. Runner: ubuntu-24.04-arm"
-                    )
-                    repository.saveJob(newJob)
-                    _notification.value = UiNotification("✅ ÜRETİM BAŞLATILDI: GitHub Actions ARM64 runner tetiklendi ($targetLang)!")
+                val result = repository.triggerFactoryRunNow()
+                _notification.value = if (result.isSuccess) {
+                    UiNotification("✅ ÜRETİM AÇIK. Bulut fabrikası şimdi tetiklendi; telefonu kapatabilirsiniz.")
                 } else {
-                    _notification.value = UiNotification("⚠️ Fabrika açıldı ancak GitHub tetikleme uyarısı: ${result.exceptionOrNull()?.message}", isError = true)
+                    UiNotification(
+                        "🟡 ÜRETİM AÇIK (Supabase). Anlık tetikleme başarısız: ${result.exceptionOrNull()?.message}. " +
+                            "Saatlik zamanlayıcı en geç 1 saat içinde devralır.",
+                        isError = true
+                    )
                 }
             } else {
-                _notification.value = UiNotification("ÜRETİM DURDURULDU: Fabrika standby moduna alındı.")
+                val cancel = repository.cancelRunningFactoryRuns()
+                _notification.value = UiNotification(
+                    when {
+                        cancel.isSuccess && (cancel.getOrNull() ?: 0) > 0 -> "🔴 ÜRETİM KAPALI. ${cancel.getOrNull()} bulut çalışması hemen durduruldu."
+                        cancel.isSuccess -> "🔴 ÜRETİM KAPALI. Çalışan bulut işi yoktu."
+                        else -> "🔴 ÜRETİM KAPALI. Çalışan iş bir sonraki kontrol noktasında (yüklemeden önce) durur."
+                    }
+                )
             }
+            repository.syncFromSupabaseCloud()
+            _isSyncing.value = false
         }
     }
 
@@ -405,6 +386,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.updateSchedule(time, timezone)
             _notification.value = UiNotification("Zamanlama $time ($timezone) olarak kaydedildi.")
+        }
+    }
+
+    fun setDistributionMode(mode: String) {
+        viewModelScope.launch {
+            val ok = repository.updateDistributionMode(mode)
+            _notification.value = if (ok) UiNotification("Yayın modeli: ${distributionLabel(mode)}")
+            else UiNotification("❌ Yayın modeli kaydedilemedi. Supabase'te 2026-09-28_multilanguage.sql çalıştırılmalı.", isError = true)
+        }
+    }
+
+    fun setNarratorMode(mode: String) {
+        viewModelScope.launch {
+            val ok = repository.updateNarratorMode(mode)
+            _notification.value = if (ok) UiNotification("Anlatıcı: ${narratorLabel(mode)}")
+            else UiNotification("❌ Anlatıcı ayarı kaydedilemedi (Supabase SQL güncellemesi gerekli olabilir).", isError = true)
+        }
+    }
+
+    fun setTtsShards(shards: Int) {
+        viewModelScope.launch {
+            val ok = repository.updateTtsShards(shards)
+            _notification.value = if (ok) UiNotification("Paralel seslendirme: dil başına $shards sunucu")
+            else UiNotification("❌ Sunucu sayısı kaydedilemedi (Supabase SQL güncellemesi gerekli olabilir).", isError = true)
         }
     }
 
