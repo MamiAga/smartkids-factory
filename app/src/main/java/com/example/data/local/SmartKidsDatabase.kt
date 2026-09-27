@@ -98,6 +98,15 @@ interface AutomationControlDao {
 
     @Query("UPDATE automation_control SET scheduleTime = :scheduleTime, timezone = :timezone, updatedAt = :timestamp WHERE id = 1")
     suspend fun setSchedule(scheduleTime: String, timezone: String, timestamp: Long = System.currentTimeMillis())
+
+    @Query("UPDATE automation_control SET distributionMode = :mode, updatedAt = :timestamp WHERE id = 1")
+    suspend fun setDistributionMode(mode: String, timestamp: Long = System.currentTimeMillis())
+
+    @Query("UPDATE automation_control SET narratorMode = :mode, updatedAt = :timestamp WHERE id = 1")
+    suspend fun setNarratorMode(mode: String, timestamp: Long = System.currentTimeMillis())
+
+    @Query("UPDATE automation_control SET ttsShards = :shards, updatedAt = :timestamp WHERE id = 1")
+    suspend fun setTtsShards(shards: Int, timestamp: Long = System.currentTimeMillis())
 }
 
 @Dao
@@ -118,7 +127,7 @@ interface SystemEventDao {
         AutomationControlEntity::class,
         SystemEventEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class SmartKidsDatabase : RoomDatabase() {

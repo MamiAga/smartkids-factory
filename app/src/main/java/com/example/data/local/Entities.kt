@@ -59,6 +59,9 @@ data class PipelineJobEntity(
     val technicalQaPassed: Boolean = false,
     val educationalQaPassed: Boolean = false,
     val logMessage: String = "",
+    val narrator: String = "",            // female / male (girl / boy narrator)
+    val progressPct: Int = 0,             // written by the cloud runner (0..100), never estimated on the phone
+    val stageDetail: String = "",         // e.g. "narration runner 3/8: 9/13 lines"
     val updatedAt: Long = System.currentTimeMillis()
 )
 
@@ -90,6 +93,9 @@ data class AutomationControlEntity(
     val nextRunAt: Long? = null,
     val currentJobId: String? = null,
     val failureCount: Int = 0,
+    val distributionMode: String = "MULTI_CHANNEL",   // MULTI_CHANNEL | SINGLE_CHANNEL | SINGLE_CHANNEL_MULTI_AUDIO
+    val narratorMode: String = "alternate",           // alternate | female | male
+    val ttsShards: Int = 8,                           // parallel narration runners per language
     val updatedAt: Long = System.currentTimeMillis()
 )
 
