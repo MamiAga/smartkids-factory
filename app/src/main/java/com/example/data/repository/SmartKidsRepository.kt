@@ -10,6 +10,14 @@ import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.withContext
 import java.security.MessageDigest
 
+/** The 10 factory languages (backend/engine/languages.py). Order = display order in the app. */
+val FACTORY_LANGUAGES = listOf(
+    "EN" to "English", "ES" to "Español", "PT" to "Português", "FR" to "Français", "DE" to "Deutsch",
+    "IT" to "Italiano", "TR" to "Türkçe", "RU" to "Русский", "AR" to "العربية", "HI" to "हिन्दी"
+)
+val FACTORY_LANGUAGE_CODES = FACTORY_LANGUAGES.map { it.first }.toSet()
+val DISTRIBUTION_MODES = listOf("MULTI_CHANNEL", "SINGLE_CHANNEL", "SINGLE_CHANNEL_MULTI_AUDIO")
+
 class SmartKidsRepository(
     private val database: SmartKidsDatabase,
     private val geminiClient: GeminiClient = GeminiClient()
@@ -25,198 +33,29 @@ class SmartKidsRepository(
     suspend fun initializeDatabaseDefaults() = withContext(Dispatchers.IO) {
         val existingVoices = database.voiceDao().getAllVoices().firstOrNull()
         if (existingVoices.isNullOrEmpty()) {
-            val initialVoices = listOf(
-                // 1. EN - APPROVED
+            // Every language is narrated by Chatterbox (MIT); the narrator timbre is a reference clip the
+            // factory generates itself with Kokoro-82M (Apache-2.0). No non-commercial model is used.
+            val initialVoices = FACTORY_LANGUAGES.map { (code, name) ->
                 VoiceLicenseEntity(
-                    voiceId = "en_libritts_r_med",
-                    languageCode = "EN",
-                    languageName = "English (US)",
-                    modelName = "en_US-libritts_r-medium.onnx",
-                    modelPath = "en/en_US/libritts_r/medium/en_US-libritts_r-medium.onnx",
-                    modelHashSha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-                    engineLicense = "GPL-3.0",
-                    modelLicense = "CC-BY-4.0",
-                    datasetLicense = "CC-BY-4.0 (LibriTTS-R corpus)",
+                    voiceId = "chatterbox_${code.lowercase()}",
+                    languageCode = code,
+                    languageName = name,
+                    modelName = if (code == "EN") "Chatterbox (English)" else "Chatterbox Multilingual v2",
+                    modelPath = "huggingface:ResembleAI/chatterbox",
+                    modelHashSha256 = "pip chatterbox-tts==0.1.7",
+                    engineLicense = "MIT",
+                    modelLicense = "MIT",
+                    datasetLicense = "Resemble AI model card (MIT)",
                     isCommercialUseAllowed = true,
                     isAttributionRequired = true,
-                    attributionText = "LibriTTS-R corpus (CC-BY 4.0)",
-                    sourceUrl = "https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_US/libritts_r/medium",
-                    modelCardUrl = "https://huggingface.co/rhasspy/piper-voices/blob/main/en/en_US/libritts_r/medium/MODEL_CARD",
+                    attributionText = "Voice: Chatterbox TTS (MIT License); reference voice Kokoro-82M (Apache License 2.0)",
+                    sourceUrl = "https://github.com/resemble-ai/chatterbox",
+                    modelCardUrl = "https://huggingface.co/ResembleAI/chatterbox",
                     isApproved = true,
-                    auditNotes = "VERIFIED APPROVED: CC-BY 4.0 model license explicitly permits commercial monetization on YouTube with description attribution."
-                ),
-                // 2. ES - APPROVED
-                VoiceLicenseEntity(
-                    voiceId = "es_sharvard_med",
-                    languageCode = "ES",
-                    languageName = "Spanish (Spain)",
-                    modelName = "es_ES-sharvard-medium.onnx",
-                    modelPath = "es/es_ES/sharvard/medium/es_ES-sharvard-medium.onnx",
-                    modelHashSha256 = "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
-                    engineLicense = "GPL-3.0",
-                    modelLicense = "CC-BY-3.0",
-                    datasetLicense = "CC-BY-3.0 (Sharvard Spanish speech dataset)",
-                    isCommercialUseAllowed = true,
-                    isAttributionRequired = true,
-                    attributionText = "Sharvard Spanish Speech Dataset (CC-BY 3.0)",
-                    sourceUrl = "https://huggingface.co/rhasspy/piper-voices/tree/main/es/es_ES/sharvard/medium",
-                    modelCardUrl = "https://huggingface.co/rhasspy/piper-voices/blob/main/es/es_ES/sharvard/medium/MODEL_CARD",
-                    isApproved = true,
-                    auditNotes = "VERIFIED APPROVED: Model card explicitly confirms CC-BY 3.0. Commercial monetization permitted with description attribution."
-                ),
-                // 3. DE - APPROVED
-                VoiceLicenseEntity(
-                    voiceId = "de_thorsten_med",
-                    languageCode = "DE",
-                    languageName = "German",
-                    modelName = "de_DE-thorsten-medium.onnx",
-                    modelPath = "de/de_DE/thorsten/medium/de_DE-thorsten-medium.onnx",
-                    modelHashSha256 = "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35",
-                    engineLicense = "GPL-3.0",
-                    modelLicense = "CC0-1.0",
-                    datasetLicense = "CC0-1.0 (Public Domain Dedication by Thorsten Müller)",
-                    isCommercialUseAllowed = true,
-                    isAttributionRequired = false,
-                    attributionText = "Thorsten-Voice Community CC0 Public Domain",
-                    sourceUrl = "https://huggingface.co/rhasspy/piper-voices/tree/main/de/de_DE/thorsten/medium",
-                    modelCardUrl = "https://huggingface.co/rhasspy/piper-voices/blob/main/de/de_DE/thorsten/medium/MODEL_CARD",
-                    isApproved = true,
-                    auditNotes = "VERIFIED APPROVED: CC0 Public Domain dedication. Unconditional zero-restriction commercial use."
-                ),
-                // 4. FR - APPROVED
-                VoiceLicenseEntity(
-                    voiceId = "fr_siwis_med",
-                    languageCode = "FR",
-                    languageName = "French",
-                    modelName = "fr_FR-siwis-medium.onnx",
-                    modelPath = "fr/fr_FR/siwis/medium/fr_FR-siwis-medium.onnx",
-                    modelHashSha256 = "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
-                    engineLicense = "GPL-3.0",
-                    modelLicense = "CC-BY-4.0",
-                    datasetLicense = "CC-BY-4.0 (SIWIS French Speech Database)",
-                    isCommercialUseAllowed = true,
-                    isAttributionRequired = true,
-                    attributionText = "SIWIS French Speech Database under CC-BY 4.0",
-                    sourceUrl = "https://huggingface.co/rhasspy/piper-voices/tree/main/fr/fr_FR/siwis/medium",
-                    modelCardUrl = "https://huggingface.co/rhasspy/piper-voices/blob/main/fr/fr_FR/siwis/medium/MODEL_CARD",
-                    isApproved = true,
-                    auditNotes = "VERIFIED APPROVED: SIWIS model card confirms CC-BY 4.0. Commercial monetization permitted with description attribution."
-                ),
-                // 5. PT - APPROVED
-                VoiceLicenseEntity(
-                    voiceId = "pt_edresson_low",
-                    languageCode = "PT",
-                    languageName = "Portuguese (Brazil)",
-                    modelName = "pt_BR-edresson-low.onnx",
-                    modelPath = "pt/pt_BR/edresson/low/pt_BR-edresson-low.onnx",
-                    modelHashSha256 = "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a",
-                    engineLicense = "GPL-3.0",
-                    modelLicense = "CC-BY-4.0",
-                    datasetLicense = "CC-BY-4.0 (TTS-Portuguese by Edresson Silva)",
-                    isCommercialUseAllowed = true,
-                    isAttributionRequired = true,
-                    attributionText = "TTS-Portuguese corpus by Edresson Silva (CC-BY 4.0)",
-                    sourceUrl = "https://huggingface.co/rhasspy/piper-voices/tree/main/pt/pt_BR/edresson/low",
-                    modelCardUrl = "https://huggingface.co/rhasspy/piper-voices/blob/v1.0.0/pt/pt_BR/edresson/low/MODEL_CARD",
-                    isApproved = true,
-                    auditNotes = "VERIFIED APPROVED: Official model card explicitly specifies CC-BY 4.0. Commercial monetization permitted with description attribution."
-                ),
-                // 6. HI - BLOCKED
-                VoiceLicenseEntity(
-                    voiceId = "hi_pratham_med",
-                    languageCode = "HI",
-                    languageName = "Hindi",
-                    modelName = "hi_IN-pratham-medium.onnx",
-                    modelPath = "hi/hi_IN/pratham/medium/hi_IN-pratham-medium.onnx",
-                    modelHashSha256 = "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
-                    engineLicense = "GPL-3.0",
-                    modelLicense = "CC-BY-NC-SA-4.0",
-                    datasetLicense = "CC-BY-NC-SA-4.0 (Indic-TTS)",
-                    isCommercialUseAllowed = false,
-                    isAttributionRequired = true,
-                    attributionText = "Indic-TTS Pratham (Non-Commercial)",
-                    sourceUrl = "https://huggingface.co/rhasspy/piper-voices/tree/main/hi/hi_IN/pratham/medium",
-                    modelCardUrl = "https://huggingface.co/rhasspy/piper-voices/blob/main/hi/hi_IN/pratham/medium/MODEL_CARD",
-                    isApproved = false,
-                    auditNotes = "🔴 CRITICAL GATE BLOCKER: Model card explicitly specifies CC-BY-NC-SA 4.0 (Non-Commercial). Incompatible with commercial monetization. BANNED from production."
-                ),
-                // 7. AR - BLOCKED
-                VoiceLicenseEntity(
-                    voiceId = "ar_kareem_med",
-                    languageCode = "AR",
-                    languageName = "Arabic",
-                    modelName = "ar_JO-kareem-medium.onnx",
-                    modelPath = "ar/ar_JO/kareem/medium/ar_JO-kareem-medium.onnx",
-                    modelHashSha256 = "ef2d127de37b942baad06145e54b0c619a1f22327b2ebbcfbec78f5564afe39d",
-                    engineLicense = "GPL-3.0",
-                    modelLicense = "See URL (Unverified)",
-                    datasetLicense = "Unverified upstream rights",
-                    isCommercialUseAllowed = false,
-                    isAttributionRequired = true,
-                    attributionText = "Kareem Arabic Voice (License unverified)",
-                    sourceUrl = "https://huggingface.co/rhasspy/piper-voices/tree/main/ar/ar_JO/kareem/medium",
-                    modelCardUrl = "https://huggingface.co/rhasspy/piper-voices/blob/main/ar/ar_JO/kareem/medium/MODEL_CARD",
-                    isApproved = false,
-                    auditNotes = "🔴 CRITICAL GATE BLOCKER: Model card states 'License: See URL' without explicit commercial grant. Provenance chain unverified. BANNED from production."
-                ),
-                // 8. ZH - BLOCKED
-                VoiceLicenseEntity(
-                    voiceId = "zh_huayan_med",
-                    languageCode = "ZH",
-                    languageName = "Chinese (Mandarin)",
-                    modelName = "zh_CN-huayan-medium.onnx",
-                    modelPath = "zh/zh_CN/huayan/medium/zh_CN-huayan-medium.onnx",
-                    modelHashSha256 = "a11883d9370cb47e5b225db8a2b5368a5c4e78eb537b0ddb6357d6b38c2049e4",
-                    engineLicense = "GPL-3.0",
-                    modelLicense = "Unknown",
-                    datasetLicense = "Unknown",
-                    isCommercialUseAllowed = false,
-                    isAttributionRequired = true,
-                    attributionText = "HuaYan Mandarin (License Unknown)",
-                    sourceUrl = "https://huggingface.co/rhasspy/piper-voices/tree/main/zh/zh_CN/huayan/medium",
-                    modelCardUrl = "https://huggingface.co/rhasspy/piper-voices/blob/main/zh/zh_CN/huayan/medium/MODEL_CARD",
-                    isApproved = false,
-                    auditNotes = "🔴 CRITICAL GATE BLOCKER: Official Hugging Face model card states 'License: Unknown'. Commercial rights cannot be legally established. BANNED from production."
-                ),
-                // 9. JA - BLOCKED
-                VoiceLicenseEntity(
-                    voiceId = "ja_hi_fi_captain_med",
-                    languageCode = "JA",
-                    languageName = "Japanese",
-                    modelName = "ja_JP-hi_fi_captain-medium.onnx",
-                    modelPath = "ja/ja_JP/hi_fi_captain/medium/ja_JP-hi_fi_captain-medium.onnx",
-                    modelHashSha256 = "8a1e5828c46ef4976d8b2d131ec5e96f13b63204976a4df6bf538a7b0a708233",
-                    engineLicense = "GPL-3.0",
-                    modelLicense = "Unverified",
-                    datasetLicense = "NICT Terms (Research Only / Commercial Restricted)",
-                    isCommercialUseAllowed = false,
-                    isAttributionRequired = true,
-                    attributionText = "Hi-Fi CAPTAIN (NICT Terms)",
-                    sourceUrl = "https://huggingface.co/rhasspy/piper-voices/tree/main/ja/ja_JP/hi_fi_captain/medium",
-                    modelCardUrl = "https://huggingface.co/rhasspy/piper-voices/blob/main/ja/ja_JP/hi_fi_captain/medium/MODEL_CARD",
-                    isApproved = false,
-                    auditNotes = "🔴 CRITICAL GATE BLOCKER: NICT Hi-Fi CAPTAIN corpus restricts usage to research/non-commercial without explicit written consent. BANNED from production."
-                ),
-                // 10. TR - BLOCKED
-                VoiceLicenseEntity(
-                    voiceId = "tr_dfki_noncommercial",
-                    languageCode = "TR",
-                    languageName = "Turkish",
-                    modelName = "tr_TR-dfki-medium.onnx",
-                    modelPath = "tr/tr_TR/dfki/medium/tr_TR-dfki-medium.onnx",
-                    modelHashSha256 = "98234827364bca882e3412574fa0782352123561aae89345bcdefa0912837461",
-                    engineLicense = "GPL-3.0",
-                    modelLicense = "CC-BY-NC-SA-4.0",
-                    datasetLicense = "CC-BY-NC-SA-4.0 (DFKI Speech corpus)",
-                    isCommercialUseAllowed = false,
-                    isAttributionRequired = true,
-                    attributionText = "DFKI Speech synthesis (NC restricted)",
-                    sourceUrl = "https://huggingface.co/rhasspy/piper-voices/tree/main/tr/tr_TR/dfki/medium",
-                    modelCardUrl = "https://huggingface.co/rhasspy/piper-voices/blob/main/tr/tr_TR/dfki/medium/MODEL_CARD",
-                    isApproved = false,
-                    auditNotes = "🔴 CRITICAL GATE BLOCKER: Model card states CC-BY-NC-SA 4.0 (Non-Commercial Restrictive). Fahrettin/Fettah models were removed from upstream main branch. BANNED from production."
+                    auditNotes = "MIT model + in-house Apache-2.0 synthetic reference voice: commercial use permitted. " +
+                        "Every take passes the voice guard (Whisper transcript + timbre drift + robotic-pitch check)."
                 )
-            )
+            }
             database.voiceDao().insertVoices(initialVoices)
         }
 
@@ -283,7 +122,10 @@ class SmartKidsRepository(
                     activeLanguagesJson = "[\"EN\"]",
                     activeChannelsJson = "[\"EN\"]",
                     generationMode = "AUTONOMOUS",
-                    publishMode = "AUTO"
+                    publishMode = "AUTO",
+                    distributionMode = "MULTI_CHANNEL",
+                    narratorMode = "alternate",
+                    ttsShards = 8
                 )
             )
         }
@@ -484,6 +326,7 @@ class SmartKidsRepository(
     }
 
     suspend fun toggleActiveLanguage(langCode: String) = withContext(Dispatchers.IO) {
+        if (langCode !in FACTORY_LANGUAGE_CODES) return@withContext
         val ctrl = database.automationControlDao().getControlSnapshot() ?: return@withContext
         val currentLangs = try {
             val list = mutableListOf<String>()
@@ -555,6 +398,13 @@ class SmartKidsRepository(
                     val currentJobId = if (obj.isNull("current_job_id")) null else obj.optString("current_job_id")
                     val heartbeatStr = if (obj.isNull("last_heartbeat")) null else obj.optString("last_heartbeat")
                     val cloudHeartbeat = parseIsoTimestamp(heartbeatStr)
+                    // columns added by backend/database/2026-09-28_multilanguage.sql (defaults if not migrated yet)
+                    val distributionMode = obj.optString("distribution_mode", "MULTI_CHANNEL").ifBlank { "MULTI_CHANNEL" }
+                    val narratorMode = obj.optString("narrator_mode", "alternate").ifBlank { "alternate" }
+                    val ttsShards = obj.optInt("tts_shards", 8)
+                    val nextRun = parseIsoTimestamp(if (obj.isNull("next_run_at")) null else obj.optString("next_run_at"))
+                    val lastRun = parseIsoTimestamp(if (obj.isNull("last_run_at")) null else obj.optString("last_run_at"))
+                    migrationApplied = obj.has("distribution_mode")
 
                     val existing = database.automationControlDao().getControlSnapshot()
                     val updated = (existing ?: AutomationControlEntity(id = 1)).copy(
@@ -566,7 +416,12 @@ class SmartKidsRepository(
                         activeChannelsJson = channels,
                         failureCount = failureCount,
                         currentJobId = currentJobId,
-                        lastHeartbeat = cloudHeartbeat
+                        lastHeartbeat = cloudHeartbeat,
+                        distributionMode = distributionMode,
+                        narratorMode = narratorMode,
+                        ttsShards = ttsShards,
+                        nextRunAt = if (nextRun > 0L) nextRun else null,
+                        lastRunAt = if (lastRun > 0L) lastRun else null
                     )
                     database.automationControlDao().insertOrUpdate(updated)
                     recordSystemEvent("CLOUD_SYNC", "Supabase automation_control başarıyla senkronize edildi (enabled=$enabled, hedef=$daily)")
@@ -577,9 +432,9 @@ class SmartKidsRepository(
                 return@withContext "Supabase HTTP $code yanıtı verdi."
             }
 
-            // 2. Fetch recent pipeline_jobs
+            // 2. Fetch recent pipeline_jobs (10 languages -> more rows)
             try {
-                val jobsUrl = java.net.URL("$supabaseUrl/rest/v1/pipeline_jobs?select=*&order=updated_at.desc&limit=20")
+                val jobsUrl = java.net.URL("$supabaseUrl/rest/v1/pipeline_jobs?select=*&order=updated_at.desc&limit=60")
                 val jobsConn = jobsUrl.openConnection() as java.net.HttpURLConnection
                 jobsConn.requestMethod = "GET"
                 jobsConn.setRequestProperty("apikey", anonKey)
@@ -603,11 +458,14 @@ class SmartKidsRepository(
                         val err = if (j.isNull("error_message")) "" else j.optString("error_message", "")
                         val proc = if (j.isNull("processing_status")) "" else j.optString("processing_status", "")
                         val updated = parseIsoTimestamp(if (j.isNull("updated_at")) null else j.optString("updated_at"))
+                        val narrator = if (j.isNull("narrator")) "" else j.optString("narrator", "")
+                        val detail = if (j.isNull("stage_detail")) "" else j.optString("stage_detail", "")
+                        val pct = if (j.isNull("progress_pct")) 0 else j.optInt("progress_pct", 0)
                         cloudJobs.add(
                             PipelineJobEntity(
                                 jobId = jId,
                                 episodeId = epId,
-                                title = "SmartKids Bölüm: $epId ($lang)",
+                                title = "SmartKids Bölüm: $epId ($lang${if (narrator.isNotBlank()) ", " + (if (narrator == "male") "erkek" else "kız") + " anlatıcı" else ""})",
                                 languageCode = lang,
                                 status = state,
                                 deterministicSeed = if (j.isNull("deterministic_seed")) "" else j.optString("deterministic_seed", ""),
@@ -620,8 +478,12 @@ class SmartKidsRepository(
                                     append("Bulut durumu: $state")
                                     if (proc.isNotBlank()) append(" | YouTube işleme: $proc")
                                     if (ytId.isNotBlank()) append(" | https://youtu.be/$ytId")
+                                    if (detail.isNotBlank()) append(" | $detail")
                                     if (err.isNotBlank()) append(" | HATA: $err")
                                 },
+                                narrator = narrator,
+                                progressPct = pct,
+                                stageDetail = detail,
                                 updatedAt = if (updated > 0L) updated else System.currentTimeMillis()
                             )
                         )
@@ -643,12 +505,102 @@ class SmartKidsRepository(
         }
     }
 
-    /** Manual single-job debug run (production_pipeline.yml). Idempotent on the cloud side. */
-    suspend fun triggerGitHubWorkflowDispatch(episodeId: String, languageCode: String): Result<String> =
-        dispatchWorkflow(
+    /**
+     * Manual test run (production_pipeline.yml): one episode in the chosen languages, same parallel pipeline
+     * as the autonomous factory. Idempotent on the cloud side (a language that already has a video is skipped).
+     */
+    suspend fun triggerGitHubWorkflowDispatch(
+        episodeId: String,
+        languages: List<String>,
+        mode: String = "MULTI_CHANNEL",
+        narrator: String = "alternate",
+        dryRun: Boolean = false
+    ): Result<String> {
+        val langs = languages.filter { it in FACTORY_LANGUAGE_CODES }.ifEmpty { listOf("EN") }.joinToString(" ")
+        return dispatchWorkflow(
             "production_pipeline.yml",
-            """{"ref":"main","inputs":{"episode_id":"$episodeId","language":"$languageCode"}}"""
+            """{"ref":"main","inputs":{"episode_id":"$episodeId","languages":"$langs","mode":"$mode","narrator":"$narrator","dry_run":"$dryRun"}}"""
         )
+    }
+
+    /** Local flag: false when the Supabase table still lacks the 2026-09-28 columns. */
+    @Volatile var migrationApplied: Boolean = true
+        private set
+
+    suspend fun updateDistributionMode(mode: String): Boolean = withContext(Dispatchers.IO) {
+        if (mode !in DISTRIBUTION_MODES) return@withContext false
+        val ok = patchControlRemote("""{"distribution_mode":"$mode"}""")
+        if (ok) database.automationControlDao().setDistributionMode(mode)
+        recordSystemEvent("DISTRIBUTION_UPDATED", if (ok) "Yayın modeli: $mode" else "Yayın modeli yazılamadı (Supabase SQL güncellemesi gerekli olabilir)", if (ok) "INFO" else "ERROR")
+        ok
+    }
+
+    suspend fun updateNarratorMode(mode: String): Boolean = withContext(Dispatchers.IO) {
+        if (mode !in listOf("alternate", "female", "male")) return@withContext false
+        val ok = patchControlRemote("""{"narrator_mode":"$mode"}""")
+        if (ok) database.automationControlDao().setNarratorMode(mode)
+        recordSystemEvent("NARRATOR_UPDATED", if (ok) "Anlatıcı: $mode" else "Anlatıcı ayarı yazılamadı", if (ok) "INFO" else "ERROR")
+        ok
+    }
+
+    suspend fun updateTtsShards(shards: Int): Boolean = withContext(Dispatchers.IO) {
+        val n = shards.coerceIn(1, 20)
+        val ok = patchControlRemote("""{"tts_shards":$n}""")
+        if (ok) database.automationControlDao().setTtsShards(n)
+        recordSystemEvent("SHARDS_UPDATED", if (ok) "Paralel seslendirme sunucusu: $n / dil" else "Paralel sunucu sayısı yazılamadı", if (ok) "INFO" else "ERROR")
+        ok
+    }
+
+    /**
+     * STOP -> also cancel factory runs that are already running on GitHub (narration runners included),
+     * so nothing keeps working in the background. Needs the PAT with "Actions: Read and write".
+     * Safe: every job is idempotent and the narration cache survives a cancel.
+     */
+    suspend fun cancelRunningFactoryRuns(): Result<Int> = withContext(Dispatchers.IO) {
+        try {
+            val pat = com.example.BuildConfig.GITHUB_PAT
+            if (pat.isBlank() || pat == "DEFAULT_GITHUB_PAT") return@withContext Result.failure(Exception("GitHub PAT yok"))
+            var cancelled = 0
+            for (wf in listOf("smartkids_factory.yml", "production_pipeline.yml")) {
+                for (status in listOf("in_progress", "queued")) {
+                    val list = githubRequest("GET", "actions/workflows/$wf/runs?status=$status&per_page=20", null)
+                    val runs = org.json.JSONObject(list).optJSONArray("workflow_runs") ?: continue
+                    for (i in 0 until runs.length()) {
+                        val id = runs.getJSONObject(i).optLong("id")
+                        if (id > 0) {
+                            githubRequest("POST", "actions/runs/$id/cancel", "")
+                            cancelled++
+                        }
+                    }
+                }
+            }
+            if (cancelled > 0) recordSystemEvent("GITHUB_RUNS_CANCELLED", "$cancelled bulut çalışması durduruldu (STOP)", "WARNING")
+            Result.success(cancelled)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    private fun githubRequest(method: String, path: String, body: String?): String {
+        val pat = com.example.BuildConfig.GITHUB_PAT
+        val conn = java.net.URL("https://api.github.com/repos/MamiAga/smartkids-factory/$path").openConnection() as java.net.HttpURLConnection
+        conn.requestMethod = method
+        conn.setRequestProperty("Authorization", "Bearer $pat")
+        conn.setRequestProperty("Accept", "application/vnd.github+json")
+        conn.setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
+        conn.setRequestProperty("User-Agent", "SmartKids-Android-Cockpit")
+        conn.connectTimeout = 8000
+        conn.readTimeout = 8000
+        if (body != null) {
+            conn.doOutput = true
+            conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+        }
+        val code = conn.responseCode
+        val text = (if (code in 200..299) conn.inputStream else conn.errorStream)?.bufferedReader()?.use { it.readText() } ?: ""
+        conn.disconnect()
+        if (code !in 200..299) throw Exception("GitHub API $code: ${text.take(160)}")
+        return text
+    }
 
     private fun parseIsoTimestamp(isoString: String?): Long {
         if (isoString.isNullOrBlank() || isoString == "null") return 0L
