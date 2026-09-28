@@ -65,7 +65,7 @@ FONTS = {
 #                              audio tracks are produced as files, because the YouTube Data API has no
 #                              endpoint for audio tracks (Studio > Languages > Add language > Dub).
 DISTRIBUTION_MODES = ("MULTI_CHANNEL", "SINGLE_CHANNEL", "SINGLE_CHANNEL_MULTI_AUDIO")
-DEFAULT_DISTRIBUTION_MODE = "MULTI_CHANNEL"
+DEFAULT_DISTRIBUTION_MODE = "SINGLE_CHANNEL_MULTI_AUDIO"
 
 
 def get(code: str) -> Dict[str, Any]:
