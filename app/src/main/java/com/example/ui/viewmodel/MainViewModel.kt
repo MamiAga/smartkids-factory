@@ -275,7 +275,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun dispatchProductionWorkflow(episodeId: String, languageCode: String) =
-        dispatchTestProduction(episodeId, listOf(languageCode), automationControl.value?.distributionMode ?: "MULTI_CHANNEL",
+        dispatchTestProduction(episodeId, listOf(languageCode), automationControl.value?.distributionMode ?: "SINGLE_CHANNEL_MULTI_AUDIO",
             automationControl.value?.narratorMode ?: "alternate", false)
 
     /** Manual test run from the phone: episode + languages + distribution + narrator (+ dry run = no upload). */
