@@ -88,7 +88,7 @@ jobs:
       - name: Install FFmpeg + Kokoro (reference voice)
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
-          pip install -q numpy soundfile kokoro-onnx==0.6.1
+          pip install -q numpy soundfile pillow==12.* kokoro-onnx==0.6.1
       - name: Install Chatterbox + Whisper (own venv, numpy<2)
         run: |
           python3 -m venv /tmp/cbenv
