@@ -4,7 +4,7 @@
 -- ============================================================================
 
 -- 1) automation_control: new remote-control settings (Android writes them)
-ALTER TABLE automation_control ADD COLUMN IF NOT EXISTS distribution_mode VARCHAR(32) NOT NULL DEFAULT 'MULTI_CHANNEL';
+ALTER TABLE automation_control ADD COLUMN IF NOT EXISTS distribution_mode VARCHAR(32) NOT NULL DEFAULT 'SINGLE_CHANNEL_MULTI_AUDIO';
 ALTER TABLE automation_control ADD COLUMN IF NOT EXISTS narrator_mode     VARCHAR(16) NOT NULL DEFAULT 'alternate';
 ALTER TABLE automation_control ADD COLUMN IF NOT EXISTS tts_shards        INTEGER     NOT NULL DEFAULT 8;
 
