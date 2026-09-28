@@ -111,6 +111,8 @@ def measure(a, sr, text):
     heard = transcribe(a, sr)
     if n >= 3:
         err = VG.text_error(text, heard, METRIC, DIGITS)
+        if METRIC == "wer":  # sound words ("baa, baa" heard as "bah, bah") are right when the letters are close
+            err = min(err, VG.text_error(text, heard, "cer", DIGITS))
     else:  # 1-2 word exclamations: must hear at least one of the words (or nothing odd)
         err = 0.0 if (set(VG.norm_words(text, DIGITS)) & set(VG.norm_words(heard, DIGITS)) or not heard.strip()) else 1.0
     a16 = VG.to16k(a, sr)
