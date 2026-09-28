@@ -75,7 +75,7 @@ fun ControlCenterScreen(
     var selectedDispatchLangs by remember { mutableStateOf(setOf("EN")) }
     var selectedDispatchEpisode by remember { mutableStateOf("EP-ANIMALS-MEGA-V1") }
     var dispatchDryRun by remember { mutableStateOf(false) }
-    val distributionMode = automationControl?.distributionMode ?: "MULTI_CHANNEL"
+    val distributionMode = automationControl?.distributionMode ?: "SINGLE_CHANNEL_MULTI_AUDIO"
     val narratorMode = automationControl?.narratorMode ?: "alternate"
     val ttsShards = automationControl?.ttsShards ?: 8
 
