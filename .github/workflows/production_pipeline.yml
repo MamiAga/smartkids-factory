@@ -17,8 +17,8 @@ on:
       mode:
         description: 'Distribution'
         type: choice
-        options: [MULTI_CHANNEL, SINGLE_CHANNEL, SINGLE_CHANNEL_MULTI_AUDIO]
-        default: MULTI_CHANNEL
+        options: [SINGLE_CHANNEL_MULTI_AUDIO, MULTI_CHANNEL, SINGLE_CHANNEL]
+        default: SINGLE_CHANNEL_MULTI_AUDIO
       narrator:
         description: 'Narrator (alternate = girl/boy per episode)'
         type: choice
