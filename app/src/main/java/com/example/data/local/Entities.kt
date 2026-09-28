@@ -93,7 +93,7 @@ data class AutomationControlEntity(
     val nextRunAt: Long? = null,
     val currentJobId: String? = null,
     val failureCount: Int = 0,
-    val distributionMode: String = "MULTI_CHANNEL",   // MULTI_CHANNEL | SINGLE_CHANNEL | SINGLE_CHANNEL_MULTI_AUDIO
+    val distributionMode: String = "SINGLE_CHANNEL_MULTI_AUDIO",   // MULTI_CHANNEL | SINGLE_CHANNEL | SINGLE_CHANNEL_MULTI_AUDIO
     val narratorMode: String = "alternate",           // alternate | female | male
     val ttsShards: Int = 8,                           // parallel narration runners per language
     val updatedAt: Long = System.currentTimeMillis()
