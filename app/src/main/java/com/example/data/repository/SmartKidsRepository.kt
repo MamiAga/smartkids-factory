@@ -123,7 +123,7 @@ class SmartKidsRepository(
                     activeChannelsJson = "[\"EN\"]",
                     generationMode = "AUTONOMOUS",
                     publishMode = "AUTO",
-                    distributionMode = "MULTI_CHANNEL",
+                    distributionMode = "SINGLE_CHANNEL_MULTI_AUDIO",
                     narratorMode = "alternate",
                     ttsShards = 8
                 )
@@ -399,7 +399,7 @@ class SmartKidsRepository(
                     val heartbeatStr = if (obj.isNull("last_heartbeat")) null else obj.optString("last_heartbeat")
                     val cloudHeartbeat = parseIsoTimestamp(heartbeatStr)
                     // columns added by backend/database/2026-09-28_multilanguage.sql (defaults if not migrated yet)
-                    val distributionMode = obj.optString("distribution_mode", "MULTI_CHANNEL").ifBlank { "MULTI_CHANNEL" }
+                    val distributionMode = obj.optString("distribution_mode", "SINGLE_CHANNEL_MULTI_AUDIO").ifBlank { "SINGLE_CHANNEL_MULTI_AUDIO" }
                     val narratorMode = obj.optString("narrator_mode", "alternate").ifBlank { "alternate" }
                     val ttsShards = obj.optInt("tts_shards", 8)
                     val nextRun = parseIsoTimestamp(if (obj.isNull("next_run_at")) null else obj.optString("next_run_at"))
@@ -512,7 +512,7 @@ class SmartKidsRepository(
     suspend fun triggerGitHubWorkflowDispatch(
         episodeId: String,
         languages: List<String>,
-        mode: String = "MULTI_CHANNEL",
+        mode: String = "SINGLE_CHANNEL_MULTI_AUDIO",
         narrator: String = "alternate",
         dryRun: Boolean = false
     ): Result<String> {
