@@ -41,6 +41,8 @@ jobs:
         with: {fetch-depth: 1}
       - uses: actions/setup-python@v5
         with: {python-version: '3.11'}
+      - name: Python deps (planning imports the engine)
+        run: pip install -q numpy soundfile pillow==12.*
       - name: Unit tests
         run: python3 -m unittest discover -s backend/tests
       - name: Plan
